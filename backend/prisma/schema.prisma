@@ -18,20 +18,13 @@ datasource db {
 // USERS & ROLES
 // ---------------------------------------------------------------------------
 
-enum Role {
-  CUSTOMER
-  BUSINESS_OWNER
-  EMPLOYEE
-  ADMIN
-}
-
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
   passwordHash  String
   name          String
   phone         String?
-  role          Role     @default(CUSTOMER)
+  role          String   @default("CUSTOMER") // CUSTOMER, BUSINESS_OWNER, EMPLOYEE, ADMIN
   avatarUrl     String?
   createdAt     DateTime @default(now())
 
@@ -82,13 +75,6 @@ model Category {
 // BUSINESSES
 // ---------------------------------------------------------------------------
 
-enum BusinessStatus {
-  PENDING
-  APPROVED
-  SUSPENDED
-  REJECTED
-}
-
 model Business {
   id          String         @id @default(uuid())
   name        String
@@ -105,7 +91,7 @@ model Business {
   phone       String?
   email       String?
 
-  status      BusinessStatus @default(PENDING)
+  status      String         @default("PENDING") // PENDING, APPROVED, SUSPENDED, REJECTED
   // JSON string matching the category's attributeSchema keys
   attributes  String         @default("{}")
 
@@ -181,14 +167,6 @@ model Service {
 // BOOKINGS
 // ---------------------------------------------------------------------------
 
-enum BookingStatus {
-  PENDING
-  CONFIRMED
-  COMPLETED
-  CANCELLED
-  DECLINED
-}
-
 model Booking {
   id           String        @id @default(uuid())
   customerId   String
@@ -200,7 +178,7 @@ model Booking {
   employeeId   String?
 
   scheduledAt  DateTime
-  status       BookingStatus @default(PENDING)
+  status       String        @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED, DECLINED
   priceCents   Int
   notes        String?
   createdAt    DateTime      @default(now())
@@ -217,20 +195,13 @@ model Booking {
 // so a real gateway (Stripe, Flutterwave, M-Pesa, etc.) can be dropped in.
 // ---------------------------------------------------------------------------
 
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
-}
-
 model Payment {
   id            String        @id @default(uuid())
   bookingId     String        @unique
   booking       Booking       @relation(fields: [bookingId], references: [id])
   amountCents   Int
   method        String        @default("card")
-  status        PaymentStatus @default(PENDING)
+  status        String        @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
   transactionRef String?
   createdAt     DateTime      @default(now())
 }
@@ -325,27 +296,12 @@ model PortfolioItem {
 // NOTIFICATIONS — System for email/SMS alerts on booking status changes
 // ---------------------------------------------------------------------------
 
-enum NotificationType {
-  BOOKING_CONFIRMED
-  BOOKING_CANCELLED
-  BOOKING_REMINDER
-  PAYMENT_RECEIVED
-  NEW_REVIEW
-  NEW_MESSAGE
-}
-
-enum NotificationStatus {
-  PENDING
-  SENT
-  FAILED
-}
-
 model Notification {
   id         String             @id @default(uuid())
   userId     String
   user       User               @relation(fields: [userId], references: [id])
-  type       NotificationType
-  status     NotificationStatus @default(PENDING)
+  type       String             // BOOKING_CONFIRMED, BOOKING_CANCELLED, BOOKING_REMINDER, PAYMENT_RECEIVED, NEW_REVIEW, NEW_MESSAGE
+  status     String             @default("PENDING") // PENDING, SENT, FAILED
   channel    String             @default("in-app") // in-app, email, sms
   subject    String?
   message    String
@@ -361,7 +317,7 @@ model Notification {
 
 model QRCheckIn {
   id         String   @id @default(uuid())
-  bookingId  String
+  bookingId  String   @unique
   booking    Booking  @relation(fields: [bookingId], references: [id])
   qrCode     String   @unique
   checkedInAt DateTime?
@@ -404,14 +360,6 @@ model SmartMatchRequest {
 // WAITING LIST — Customers waiting for available slots
 // ---------------------------------------------------------------------------
 
-enum WaitingListStatus {
-  ACTIVE
-  NOTIFIED
-  BOOKED
-  EXPIRED
-  CANCELLED
-}
-
 model WaitingList {
   id          String            @id @default(uuid())
   userId      String
@@ -423,7 +371,7 @@ model WaitingList {
   preferredDate DateTime?
   preferredTimeStart String?    // "14:00"
   preferredTimeEnd   String?    // "18:00"
-  status      WaitingListStatus @default(ACTIVE)
+  status      String            @default("ACTIVE") // ACTIVE, NOTIFIED, BOOKED, EXPIRED, CANCELLED
   notifiedAt  DateTime?
   expiresAt   DateTime?
   createdAt   DateTime          @default(now())
@@ -432,14 +380,6 @@ model WaitingList {
 // ---------------------------------------------------------------------------
 // EMERGENCY BOOKING — Urgent service requests
 // ---------------------------------------------------------------------------
-
-enum EmergencyStatus {
-  REQUESTED
-  PROVIDER_NOTIFIED
-  ACCEPTED
-  DECLINED
-  EXPIRED
-}
 
 model EmergencyBooking {
   id            String          @id @default(uuid())
@@ -452,7 +392,7 @@ model EmergencyBooking {
   latitude      Float?
   longitude     Float?
   maxPriceCents Int?
-  status        EmergencyStatus @default(REQUESTED)
+  status        String          @default("REQUESTED") // REQUESTED, PROVIDER_NOTIFIED, ACCEPTED, DECLINED, EXPIRED
   acceptedById  String?         // Business ID that accepted
   createdAt     DateTime        @default(now())
   expiresAt     DateTime
@@ -474,19 +414,11 @@ model PlatformLoyaltyAccount {
   transactions     PlatformLoyaltyTransaction[]
 }
 
-enum LoyaltyTransactionType {
-  EARNED
-  REDEEMED
-  EXPIRED
-  BONUS
-  ADJUSTMENT
-}
-
 model PlatformLoyaltyTransaction {
   id          String                   @id @default(uuid())
   accountId   String
   account     PlatformLoyaltyAccount   @relation(fields: [accountId], references: [id])
-  type        LoyaltyTransactionType
+  type        String                   // EARNED, REDEEMED, EXPIRED, BONUS, ADJUSTMENT
   points      Int
   businessId  String?
   business    Business?                @relation(fields: [businessId], references: [id])
@@ -517,19 +449,11 @@ model ReviewSummary {
 // ENHANCED PORTFOLIO — Support for videos, certificates, licenses
 // ---------------------------------------------------------------------------
 
-enum PortfolioMediaType {
-  PHOTO
-  VIDEO
-  CERTIFICATE
-  LICENSE
-  PROJECT
-}
-
 model EnhancedPortfolio {
   id          String             @id @default(uuid())
   businessId  String
   business    Business           @relation(fields: [businessId], references: [id])
-  type        PortfolioMediaType
+  type        String             // PHOTO, VIDEO, CERTIFICATE, LICENSE, PROJECT
   title       String?
   description String?
   mediaUrl    String

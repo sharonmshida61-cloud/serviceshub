@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
 // Get user's favorite businesses
-router.get("/", authenticate, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     const favorites = await prisma.favorite.findMany({
       where: { userId: req.user.id },
@@ -26,7 +26,7 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 // Add business to favorites
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { businessId } = req.body;
     if (!businessId) {
@@ -56,7 +56,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Remove business from favorites
-router.delete("/:businessId", authenticate, async (req, res, next) => {
+router.delete("/:businessId", requireAuth, async (req, res, next) => {
   try {
     await prisma.favorite.deleteMany({
       where: {
@@ -71,7 +71,7 @@ router.delete("/:businessId", authenticate, async (req, res, next) => {
 });
 
 // Check if business is favorited
-router.get("/check/:businessId", authenticate, async (req, res, next) => {
+router.get("/check/:businessId", requireAuth, async (req, res, next) => {
   try {
     const favorite = await prisma.favorite.findUnique({
       where: {

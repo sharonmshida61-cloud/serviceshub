@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
 // Create emergency booking request
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { categoryId, description, location, latitude, longitude, maxPriceCents } = req.body;
 
@@ -104,7 +104,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Get user's emergency bookings
-router.get("/mine", authenticate, async (req, res, next) => {
+router.get("/mine", requireAuth, async (req, res, next) => {
   try {
     const emergencies = await prisma.emergencyBooking.findMany({
       where: { userId: req.user.id },
@@ -121,7 +121,7 @@ router.get("/mine", authenticate, async (req, res, next) => {
 });
 
 // Accept emergency booking (business owner)
-router.post("/:id/accept", authenticate, async (req, res, next) => {
+router.post("/:id/accept", requireAuth, async (req, res, next) => {
   try {
     const { businessId } = req.body;
 
@@ -206,7 +206,7 @@ router.post("/:id/accept", authenticate, async (req, res, next) => {
 });
 
 // Get emergency bookings for business (owner/employee view)
-router.get("/business/:businessId", authenticate, async (req, res, next) => {
+router.get("/business/:businessId", requireAuth, async (req, res, next) => {
   try {
     const business = await prisma.business.findUnique({
       where: { id: req.params.businessId },

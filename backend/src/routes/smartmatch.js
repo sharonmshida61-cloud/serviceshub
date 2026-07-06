@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
@@ -41,7 +41,7 @@ function parseQuery(query) {
 }
 
 // AI Smart Match - Natural language service discovery
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { query } = req.body;
     
@@ -142,7 +142,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Get user's smart match history
-router.get("/history", authenticate, async (req, res, next) => {
+router.get("/history", requireAuth, async (req, res, next) => {
   try {
     const history = await prisma.smartMatchRequest.findMany({
       where: { userId: req.user.id },

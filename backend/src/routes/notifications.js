@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
 // Get user's notifications
-router.get("/", authenticate, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     const { unreadOnly } = req.query;
     
@@ -25,7 +25,7 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 // Mark notification as read
-router.put("/:id/read", authenticate, async (req, res, next) => {
+router.put("/:id/read", requireAuth, async (req, res, next) => {
   try {
     const notification = await prisma.notification.findUnique({
       where: { id: req.params.id },
@@ -47,7 +47,7 @@ router.put("/:id/read", authenticate, async (req, res, next) => {
 });
 
 // Mark all notifications as read
-router.put("/read-all", authenticate, async (req, res, next) => {
+router.put("/read-all", requireAuth, async (req, res, next) => {
   try {
     await prisma.notification.updateMany({
       where: {
@@ -64,7 +64,7 @@ router.put("/read-all", authenticate, async (req, res, next) => {
 });
 
 // Create notification (internal use - typically called by other services)
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { userId, type, channel, subject, message, metadata } = req.body;
 
@@ -99,7 +99,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Get unread count
-router.get("/unread-count", authenticate, async (req, res, next) => {
+router.get("/unread-count", requireAuth, async (req, res, next) => {
   try {
     const count = await prisma.notification.count({
       where: {

@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
@@ -27,7 +27,7 @@ function calculateTier(points) {
 }
 
 // Get user's platform loyalty account
-router.get("/", authenticate, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     let account = await prisma.platformLoyaltyAccount.findUnique({
       where: { userId: req.user.id },
@@ -58,7 +58,7 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 // Award points (called internally when booking is completed)
-router.post("/award", authenticate, async (req, res, next) => {
+router.post("/award", requireAuth, async (req, res, next) => {
   try {
     const { userId, bookingId, businessId, points, description } = req.body;
 
@@ -138,7 +138,7 @@ router.post("/award", authenticate, async (req, res, next) => {
 });
 
 // Redeem points
-router.post("/redeem", authenticate, async (req, res, next) => {
+router.post("/redeem", requireAuth, async (req, res, next) => {
   try {
     const { points, businessId } = req.body;
 
@@ -196,7 +196,7 @@ router.post("/redeem", authenticate, async (req, res, next) => {
 });
 
 // Get platform loyalty statistics (admin)
-router.get("/stats", authenticate, async (req, res, next) => {
+router.get("/stats", requireAuth, async (req, res, next) => {
   try {
     if (req.user.role !== "ADMIN") {
       return res.status(403).json({ error: "Unauthorized" });

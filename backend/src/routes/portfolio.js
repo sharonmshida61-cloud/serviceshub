@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
@@ -18,7 +18,7 @@ router.get("/business/:businessId", async (req, res, next) => {
 });
 
 // Add portfolio item (business owner only)
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { businessId, title, description, imageUrl, displayOrder } = req.body;
 
@@ -52,7 +52,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Update portfolio item
-router.put("/:id", authenticate, async (req, res, next) => {
+router.put("/:id", requireAuth, async (req, res, next) => {
   try {
     const item = await prisma.portfolioItem.findUnique({
       where: { id: req.params.id },
@@ -82,7 +82,7 @@ router.put("/:id", authenticate, async (req, res, next) => {
 });
 
 // Delete portfolio item
-router.delete("/:id", authenticate, async (req, res, next) => {
+router.delete("/:id", requireAuth, async (req, res, next) => {
   try {
     const item = await prisma.portfolioItem.findUnique({
       where: { id: req.params.id },

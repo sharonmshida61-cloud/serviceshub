@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
@@ -19,7 +19,7 @@ function calculateTier(points) {
 }
 
 // Get user's loyalty cards
-router.get("/", authenticate, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     const cards = await prisma.loyaltyCard.findMany({
       where: { userId: req.user.id },
@@ -39,7 +39,7 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 // Get loyalty card for specific business
-router.get("/:businessId", authenticate, async (req, res, next) => {
+router.get("/:businessId", requireAuth, async (req, res, next) => {
   try {
     const card = await prisma.loyaltyCard.findUnique({
       where: {
@@ -63,7 +63,7 @@ router.get("/:businessId", authenticate, async (req, res, next) => {
 });
 
 // Award points (called internally when booking is completed)
-router.post("/award", authenticate, async (req, res, next) => {
+router.post("/award", requireAuth, async (req, res, next) => {
   try {
     const { businessId, points, customerId } = req.body;
     
@@ -110,7 +110,7 @@ router.post("/award", authenticate, async (req, res, next) => {
 });
 
 // Get business loyalty statistics (for business owners)
-router.get("/business/:businessId/stats", authenticate, async (req, res, next) => {
+router.get("/business/:businessId/stats", requireAuth, async (req, res, next) => {
   try {
     const business = await prisma.business.findUnique({
       where: { id: req.params.businessId },
