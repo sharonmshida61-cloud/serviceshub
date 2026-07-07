@@ -1,13 +1,13 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 const crypto = require("crypto");
 const QRCode = require("qrcode");
 
 const prisma = new PrismaClient();
 
 // Generate QR code for a booking (customer or business can call this)
-router.post("/generate/:bookingId", authenticate, async (req, res, next) => {
+router.post("/generate/:bookingId", requireAuth, async (req, res, next) => {
   try {
     const booking = await prisma.booking.findUnique({
       where: { id: req.params.bookingId },
@@ -66,7 +66,7 @@ router.post("/generate/:bookingId", authenticate, async (req, res, next) => {
 });
 
 // Check-in using QR code (employee scans customer's QR)
-router.post("/checkin", authenticate, async (req, res, next) => {
+router.post("/checkin", requireAuth, async (req, res, next) => {
   try {
     const { qrCode } = req.body;
 
@@ -139,7 +139,7 @@ router.post("/checkin", authenticate, async (req, res, next) => {
 });
 
 // Get QR check-in status for a booking
-router.get("/status/:bookingId", authenticate, async (req, res, next) => {
+router.get("/status/:bookingId", requireAuth, async (req, res, next) => {
   try {
     const qrCheckIn = await prisma.qRCheckIn.findFirst({
       where: { bookingId: req.params.bookingId },

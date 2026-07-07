@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
 // Join waiting list
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { businessId, serviceId, preferredDate, preferredTimeStart, preferredTimeEnd } = req.body;
     
@@ -42,7 +42,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Get user's waiting lists
-router.get("/mine", authenticate, async (req, res, next) => {
+router.get("/mine", requireAuth, async (req, res, next) => {
   try {
     const waitingLists = await prisma.waitingList.findMany({
       where: {
@@ -65,7 +65,7 @@ router.get("/mine", authenticate, async (req, res, next) => {
 });
 
 // Notify waiting list (called when a booking is cancelled)
-router.post("/notify/:businessId", authenticate, async (req, res, next) => {
+router.post("/notify/:businessId", requireAuth, async (req, res, next) => {
   try {
     const { serviceId, availableSlot } = req.body;
 
@@ -136,7 +136,7 @@ router.post("/notify/:businessId", authenticate, async (req, res, next) => {
 });
 
 // Remove from waiting list
-router.delete("/:id", authenticate, async (req, res, next) => {
+router.delete("/:id", requireAuth, async (req, res, next) => {
   try {
     const waitingList = await prisma.waitingList.findUnique({
       where: { id: req.params.id },

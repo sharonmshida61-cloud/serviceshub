@@ -1,6 +1,6 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
@@ -24,7 +24,7 @@ router.get("/business/:businessId", async (req, res, next) => {
 });
 
 // Add enhanced portfolio item (business owner only)
-router.post("/", authenticate, async (req, res, next) => {
+router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { businessId, type, title, description, mediaUrl, thumbnailUrl, metadata, displayOrder } = req.body;
 
@@ -67,7 +67,7 @@ router.post("/", authenticate, async (req, res, next) => {
 });
 
 // Update enhanced portfolio item
-router.put("/:id", authenticate, async (req, res, next) => {
+router.put("/:id", requireAuth, async (req, res, next) => {
   try {
     const item = await prisma.enhancedPortfolio.findUnique({
       where: { id: req.params.id },
@@ -100,7 +100,7 @@ router.put("/:id", authenticate, async (req, res, next) => {
 });
 
 // Delete enhanced portfolio item
-router.delete("/:id", authenticate, async (req, res, next) => {
+router.delete("/:id", requireAuth, async (req, res, next) => {
   try {
     const item = await prisma.enhancedPortfolio.findUnique({
       where: { id: req.params.id },
@@ -122,7 +122,7 @@ router.delete("/:id", authenticate, async (req, res, next) => {
 });
 
 // Verify certificate/license (admin only)
-router.post("/:id/verify", authenticate, async (req, res, next) => {
+router.post("/:id/verify", requireAuth, async (req, res, next) => {
   try {
     if (req.user.role !== "ADMIN") {
       return res.status(403).json({ error: "Unauthorized - admin only" });
@@ -152,7 +152,7 @@ router.post("/:id/verify", authenticate, async (req, res, next) => {
 });
 
 // Get portfolio statistics (for business owner)
-router.get("/business/:businessId/stats", authenticate, async (req, res, next) => {
+router.get("/business/:businessId/stats", requireAuth, async (req, res, next) => {
   try {
     const business = await prisma.business.findUnique({
       where: { id: req.params.businessId },

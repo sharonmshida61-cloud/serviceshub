@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
 // Get business analytics (for business owners)
-router.get("/business/:businessId", authenticate, async (req, res, next) => {
+router.get("/business/:businessId", requireAuth, async (req, res, next) => {
   try {
     const business = await prisma.business.findUnique({
       where: { id: req.params.businessId },
@@ -235,7 +235,7 @@ router.get("/business/:businessId", authenticate, async (req, res, next) => {
 });
 
 // Get platform-wide analytics (admin only)
-router.get("/platform", authenticate, async (req, res, next) => {
+router.get("/platform", requireAuth, async (req, res, next) => {
   try {
     if (req.user.role !== "ADMIN") {
       return res.status(403).json({ error: "Unauthorized" });

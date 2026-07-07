@@ -3,12 +3,7 @@ import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
 import SmartMatch from "../components/SmartMatch.jsx";
-
-const ICONS = {
-  scissors: "✂️", sparkles: "✨", car: "🚗", shirt: "👕", "spray-can": "🧴",
-  wrench: "🔧", zap: "⚡", cog: "⚙️", camera: "📷", "book-open": "📖",
-  dumbbell: "🏋️", calendar: "📅", hand: "💆", laptop: "💻", hammer: "🔨",
-};
+import { getCategoryImage } from "../utils/categoryImages.js";
 
 export default function Home() {
   const [categories, setCategories] = useState([]);
@@ -99,7 +94,7 @@ export default function Home() {
             onClick={() => setFilters((f) => ({ ...f, category: "" }))}
             style={{ cursor: "pointer" }}
           >
-            <span className="icon">🗂️</span>
+            <img src="https://api.iconify.design/mdi:folder.svg?color=%23fb8500&height=48" alt="Categories" />
             All categories
           </button>
           {categories.map((c) => (
@@ -109,7 +104,7 @@ export default function Home() {
               onClick={() => setFilters((f) => ({ ...f, category: f.category === c.slug ? "" : c.slug }))}
               style={{ cursor: "pointer" }}
             >
-              <span className="icon">{ICONS[c.icon] || "🔹"}</span>
+              <img src={getCategoryImage(c.icon)} alt={c.name} />
               {c.name}
             </button>
           ))}
@@ -149,7 +144,7 @@ export default function Home() {
               <StarDisplay rating={b.avgRating} count={b.reviewCount} />
               <p>{b.description}</p>
               <div className="attr-list">
-                {b.city && <span className="attr-chip">📍 {b.city}</span>}
+                {b.city && <span className="attr-chip">📍&nbsp;{b.city}</span>}
                 {b.services?.length > 0 && (
                   <span className="attr-chip">
                     from {formatMoney(Math.min(...b.services.map((s) => s.priceCents)))}

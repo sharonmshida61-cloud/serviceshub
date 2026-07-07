@@ -1,11 +1,11 @@
 const router = require("express").Router();
 const { PrismaClient } = require("@prisma/client");
-const { authenticate } = require("../middleware/auth");
+const { requireAuth } = require("../middleware/auth");
 
 const prisma = new PrismaClient();
 
 // Get user settings
-router.get("/", authenticate, async (req, res, next) => {
+router.get("/", requireAuth, async (req, res, next) => {
   try {
     let settings = await prisma.userSettings.findUnique({
       where: { userId: req.user.id },
@@ -25,7 +25,7 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 // Update user settings
-router.put("/", authenticate, async (req, res, next) => {
+router.put("/", requireAuth, async (req, res, next) => {
   try {
     const {
       emailNotifications,

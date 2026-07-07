@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { useAuth } from "../context/AuthContext.jsx";
 import { StarDisplay } from "../components/StarRating.jsx";
+import MediaGallery from "../components/MediaGallery.jsx";
 
 export default function BusinessDetail() {
   const { id } = useParams();
@@ -109,7 +110,7 @@ export default function BusinessDetail() {
       <p>{business.description}</p>
       <div className="attr-list">
         {business.city && <span className="attr-chip">📍 {business.city}{business.address ? `, ${business.address}` : ""}</span>}
-        {business.phone && <span className="attr-chip">☎ {business.phone}</span>}
+        {business.phone && <span className="attr-chip">📞 {business.phone}</span>}
         {attrs.map(([k, v]) => (
           <span className="attr-chip" key={k}>{k}: {String(v)}</span>
         ))}
