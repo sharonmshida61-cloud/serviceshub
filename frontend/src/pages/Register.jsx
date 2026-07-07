@@ -5,17 +5,30 @@ import { useAuth } from "../context/AuthContext.jsx";
 export default function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "CUSTOMER" });
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+    asCustomer: true,
+    asBusinessOwner: false,
+  });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!form.asCustomer && !form.asBusinessOwner) {
+      setError("Please select at least one role");
+      return;
+    }
     setError("");
     setBusy(true);
     try {
       const user = await register(form);
-      navigate(user.role === "BUSINESS_OWNER" ? "/dashboard/business" : "/dashboard/customer");
+      // Navigate to the appropriate dashboard based on current role
+      const currentRole = user.currentRole || user.role;
+      navigate(currentRole === "BUSINESS_OWNER" ? "/dashboard/business" : "/dashboard/customer");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -42,12 +55,28 @@ export default function Register() {
             <input type="password" required minLength={6} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
           </div>
           <div className="field">
-            <label>I'm joining as a…</label>
-            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
-              <option value="CUSTOMER">Customer — I want to book services</option>
-              <option value="BUSINESS_OWNER">Business owner — I want to list my services</option>
-            </select>
-            <div className="hint">Employee accounts are added by a business owner from their dashboard.</div>
+            <label>Phone (optional)</label>
+            <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+          </div>
+          <div className="field">
+            <label>What do you want to do?</label>
+            <div className="checkbox-row" style={{ marginBottom: "12px" }}>
+              <input
+                type="checkbox"
+                checked={form.asCustomer}
+                onChange={(e) => setForm((f) => ({ ...f, asCustomer: e.target.checked }))}
+              />
+              <label style={{ marginBottom: 0 }}>Book services as a customer</label>
+            </div>
+            <div className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={form.asBusinessOwner}
+                onChange={(e) => setForm((f) => ({ ...f, asBusinessOwner: e.target.checked }))}
+              />
+              <label style={{ marginBottom: 0 }}>List my business and accept bookings</label>
+            </div>
+            <div className="hint">You can change these anytime from your dashboard.</div>
           </div>
           <button className="btn btn-primary btn-block" disabled={busy}>
             {busy ? "Creating account…" : "Create account"}

@@ -13,7 +13,11 @@ export default function MediaGallery({ items = [], title = "Gallery" }) {
   }
 
   const sortedItems = [...items].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-  const selected = sortedItems[selectedIndex];
+  const selected = sortedItems[selectedIndex] || sortedItems[0];
+
+  if (!selected) {
+    return null;
+  }
 
   const isVideo = selected?.type === "VIDEO" || selected?.mediaUrl?.includes("youtube") || selected?.mediaUrl?.includes("vimeo");
 

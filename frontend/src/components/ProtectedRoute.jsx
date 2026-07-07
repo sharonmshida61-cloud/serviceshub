@@ -6,11 +6,14 @@ export default function ProtectedRoute({ roles, children }) {
 
   if (loading) return <div className="container page">Loading…</div>;
   if (!user) return <Navigate to="/login" replace />;
-  if (roles && !roles.includes(user.role)) {
+  
+  // Check against currentRole (active role) or legacy role field
+  const currentRole = user.currentRole || user.role;
+  if (roles && !roles.includes(currentRole)) {
     return (
       <div className="container page">
         <div className="alert alert-error">
-          Your account ({user.role.replace("_", " ").toLowerCase()}) doesn't have access to this page.
+          Your account ({currentRole.replace("_", " ").toLowerCase()}) doesn't have access to this page.
         </div>
       </div>
     );

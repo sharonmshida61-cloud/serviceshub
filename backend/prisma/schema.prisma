@@ -24,7 +24,9 @@ model User {
   passwordHash  String
   name          String
   phone         String?
-  role          String   @default("CUSTOMER") // CUSTOMER, BUSINESS_OWNER, EMPLOYEE, ADMIN
+  roles         String   @default("[\"CUSTOMER\"]") // JSON array: ["CUSTOMER"], ["BUSINESS_OWNER"], or ["CUSTOMER", "BUSINESS_OWNER"]
+  currentRole   String   @default("CUSTOMER") // Current active role for UI purposes
+  role          String   @default("CUSTOMER") // Legacy field for backward compatibility
   avatarUrl     String?
   createdAt     DateTime @default(now())
 
