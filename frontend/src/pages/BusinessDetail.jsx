@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { useAuth } from "../context/AuthContext.jsx";
 import { StarDisplay } from "../components/StarRating.jsx";
+import MediaGallery from "../components/MediaGallery.jsx";
 
 export default function BusinessDetail() {
   const { id } = useParams();
@@ -109,7 +110,7 @@ export default function BusinessDetail() {
       <p>{business.description}</p>
       <div className="attr-list">
         {business.city && <span className="attr-chip">📍 {business.city}{business.address ? `, ${business.address}` : ""}</span>}
-        {business.phone && <span className="attr-chip">☎ {business.phone}</span>}
+        {business.phone && <span className="attr-chip">📞 {business.phone}</span>}
         {attrs.map(([k, v]) => (
           <span className="attr-chip" key={k}>{k}: {String(v)}</span>
         ))}
@@ -220,6 +221,67 @@ export default function BusinessDetail() {
       {success && <div className="alert alert-success">{success}</div>}
       {error && <div className="alert alert-error">{error}</div>}
 
+      {/* Media Gallery - prominently display photos and videos during booking */}
+      {enhancedPortfolio.length > 0 && (
+        <div style={{ marginTop: 32, marginBottom: 32 }}>
+          <MediaGallery items={enhancedPortfolio} title="Gallery" />
+        </div>
+      )}
+
+      {/* Review Summary - help customers make informed decisions */}
+      {reviewSummary && (
+        <div className="card" style={{ marginTop: 24, marginBottom: 32, borderLeft: "4px solid var(--amber)" }}>
+          <h3>Customer Reviews Summary</h3>
+          <div className="grid grid-2" style={{ gap: "16px", marginBottom: "16px" }}>
+            <div>
+              <p style={{ margin: "0 0 4px 0", color: "var(--ink-2)", fontSize: "0.85rem" }}>OVERALL SENTIMENT</p>
+              <div style={{ fontSize: "1.1rem", fontWeight: "700", textTransform: "capitalize", color: reviewSummary.sentiment === "positive" ? "var(--good)" : reviewSummary.sentiment === "negative" ? "var(--bad)" : "var(--amber)" }}>
+                {reviewSummary.sentiment}
+              </div>
+            </div>
+            <div>
+              <p style={{ margin: "0 0 4px 0", color: "var(--ink-2)", fontSize: "0.85rem" }}>TOTAL REVIEWS</p>
+              <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{business.reviewCount}</div>
+            </div>
+          </div>
+          {reviewSummary.summary && <p>{reviewSummary.summary}</p>}
+          {(() => {
+            try {
+              const strengths = typeof reviewSummary.strengths === "string" ? JSON.parse(reviewSummary.strengths) : reviewSummary.strengths || [];
+              return strengths && strengths.length > 0 ? (
+                <div>
+                  <p style={{ fontWeight: "600", marginBottom: "8px", color: "var(--good)" }}>✓ What customers love:</p>
+                  <div className="attr-list">
+                    {strengths.map((strength, i) => (
+                      <span key={i} className="attr-chip">{strength}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            } catch (e) {
+              return null;
+            }
+          })()}
+          {(() => {
+            try {
+              const concerns = typeof reviewSummary.concerns === "string" ? JSON.parse(reviewSummary.concerns) : reviewSummary.concerns || [];
+              return concerns && concerns.length > 0 ? (
+                <div style={{ marginTop: "12px" }}>
+                  <p style={{ fontWeight: "600", marginBottom: "8px", color: "var(--bad)" }}>⚠ Common feedback:</p>
+                  <div className="attr-list">
+                    {concerns.map((concern, i) => (
+                      <span key={i} className="attr-chip">{concern}</span>
+                    ))}
+                  </div>
+                </div>
+              ) : null;
+            } catch (e) {
+              return null;
+            }
+          })()}
+        </div>
+      )}
+
       <div className="grid grid-2" style={{ marginTop: 32, alignItems: "start" }}>
         <div>
           <h2>Services</h2>
@@ -303,40 +365,61 @@ export default function BusinessDetail() {
               <h3 style={{ marginTop: 0 }}>🤖 AI Review Summary</h3>
               <p style={{ fontSize: "0.95rem" }}>{reviewSummary.summary}</p>
               
-              {reviewSummary.strengths?.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <strong style={{ color: "#10b981", fontSize: "0.9rem" }}>✓ Strengths:</strong>
-                  <ul style={{ margin: "4px 0", paddingLeft: 20, fontSize: "0.9rem" }}>
-                    {reviewSummary.strengths.map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {(() => {
+                try {
+                  const strengths = typeof reviewSummary.strengths === "string" ? JSON.parse(reviewSummary.strengths) : reviewSummary.strengths || [];
+                  return strengths && strengths.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <strong style={{ color: "#10b981", fontSize: "0.9rem" }}>✓ Strengths:</strong>
+                      <ul style={{ margin: "4px 0", paddingLeft: 20, fontSize: "0.9rem" }}>
+                        {strengths.map((s, i) => (
+                          <li key={i}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null;
+                } catch (e) {
+                  return null;
+                }
+              })()}
               
-              {reviewSummary.concerns?.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <strong style={{ color: "#f59e0b", fontSize: "0.9rem" }}>⚠ Areas to note:</strong>
-                  <ul style={{ margin: "4px 0", paddingLeft: 20, fontSize: "0.9rem" }}>
-                    {reviewSummary.concerns.map((c, i) => (
-                      <li key={i}>{c}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              {(() => {
+                try {
+                  const concerns = typeof reviewSummary.concerns === "string" ? JSON.parse(reviewSummary.concerns) : reviewSummary.concerns || [];
+                  return concerns && concerns.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <strong style={{ color: "#f59e0b", fontSize: "0.9rem" }}>⚠ Areas to note:</strong>
+                      <ul style={{ margin: "4px 0", paddingLeft: 20, fontSize: "0.9rem" }}>
+                        {concerns.map((c, i) => (
+                          <li key={i}>{c}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null;
+                } catch (e) {
+                  return null;
+                }
+              })()}
               
-              {reviewSummary.keyTopics?.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <strong style={{ fontSize: "0.85rem" }}>Key topics:</strong>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-                    {reviewSummary.keyTopics.map((topic) => (
-                      <span key={topic} className="attr-chip" style={{ fontSize: "0.8rem" }}>
-                        {topic}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {(() => {
+                try {
+                  const keyTopics = typeof reviewSummary.keyTopics === "string" ? JSON.parse(reviewSummary.keyTopics) : reviewSummary.keyTopics || [];
+                  return keyTopics && keyTopics.length > 0 ? (
+                    <div style={{ marginTop: 12 }}>
+                      <strong style={{ fontSize: "0.85rem" }}>Key topics:</strong>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                        {keyTopics.map((topic) => (
+                          <span key={topic} className="attr-chip" style={{ fontSize: "0.8rem" }}>
+                            {topic}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                } catch (e) {
+                  return null;
+                }
+              })()}
             </div>
           )}
           

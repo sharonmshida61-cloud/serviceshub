@@ -1,4 +1,5 @@
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { useAuth } from "./context/AuthContext.jsx";
 import { useLanguage } from "./context/LanguageContext.jsx";
 import Home from "./pages/Home.jsx";
@@ -25,6 +26,11 @@ export default function App() {
   const { user, logout, loading } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+
+  // Get current active role (or fall back to first available role)
+  const currentRole = user?.currentRole || user?.role;
+  const availableRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
 
   return (
     <div>
@@ -37,10 +43,65 @@ export default function App() {
             <Link to="/">{t("nav.discover")}</Link>
             {!loading && user && (
               <>
-                <Link to={DASHBOARD_BY_ROLE[user.role]}>{t("nav.dashboard")}</Link>
+                <Link to={DASHBOARD_BY_ROLE[currentRole]}>{t("nav.dashboard")}</Link>
                 <Link to="/settings">{t("nav.settings")}</Link>
                 <NotificationBell />
-                <span className="role-badge">{user.role.replace("_", " ")}</span>
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <button 
+                    className="role-badge" 
+                    onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
+                    style={{ cursor: availableRoles.length > 1 ? "pointer" : "default" }}
+                  >
+                    {currentRole.replace("_", " ")}
+                    {availableRoles.length > 1 && <span style={{ marginLeft: "4px" }}>▼</span>}
+                  </button>
+                  {showRoleSwitcher && availableRoles.length > 1 && (
+                    <div style={{
+                      position: "absolute",
+                      top: "100%",
+                      right: 0,
+                      background: "white",
+                      border: "1px solid var(--line)",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                      zIndex: 1000,
+                      minWidth: "150px",
+                      marginTop: "4px"
+                    }}>
+                      {availableRoles.map((role) => (
+                        <button
+                          key={role}
+                          onClick={() => {
+                            // Call switch role endpoint
+                            const token = localStorage.getItem("token");
+                            fetch(`http://localhost:4000/api/auth/switchRole/${role}`, {
+                              method: "POST",
+                              headers: { Authorization: `Bearer ${token}` }
+                            })
+                              .then(r => r.json())
+                              .then(({ token: newToken, user: newUser }) => {
+                                localStorage.setItem("token", newToken);
+                                window.location.reload();
+                              });
+                            setShowRoleSwitcher(false);
+                          }}
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "8px 12px",
+                            border: "none",
+                            background: role === currentRole ? "var(--amber-light)" : "transparent",
+                            cursor: "pointer",
+                            fontSize: "0.9rem"
+                          }}
+                        >
+                          {role.replace("_", " ")}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   className="linklike"
                   onClick={() => {

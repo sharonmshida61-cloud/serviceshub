@@ -106,7 +106,7 @@ export default function SmartMatch() {
                 <StarDisplay rating={business.avgRating} count={business.reviewCount} />
                 <p style={{ fontSize: "0.9rem", margin: "8px 0" }}>{business.description}</p>
                 <div className="attr-list">
-                  {business.city && <span className="attr-chip">📍 {business.city}</span>}
+                  {business.city && <span className="attr-chip">📍&nbsp;{business.city}</span>}
                   {business.services?.length > 0 && (
                     <span className="attr-chip">
                       from {formatMoney(Math.min(...business.services.map((s) => s.priceCents)))}

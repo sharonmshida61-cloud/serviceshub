@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
+import MediaUpload from "../components/MediaUpload.jsx";
 
 const TABS = ["Bookings", "Services", "Employees", "Messages", "Reviews", "Settings"];
 
@@ -384,6 +385,20 @@ function SettingsPanel({ business, onChange }) {
   const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "" });
   const [attrs, setAttrs] = useState(business.attributes || {});
   const [saved, setSaved] = useState(false);
+  const [settingsTab, setSettingsTab] = useState("general"); // "general" or "media"
+  const [mediaItems, setMediaItems] = useState([]);
+  const [showMediaForm, setShowMediaForm] = useState(false);
+  const [mediaLoading, setMediaLoading] = useState(false);
+
+  useEffect(() => {
+    if (settingsTab === "media") {
+      setMediaLoading(true);
+      api.enhancedPortfolio(business.id)
+        .then(setMediaItems)
+        .catch(() => setMediaItems([]))
+        .finally(() => setMediaLoading(false));
+    }
+  }, [settingsTab, business.id]);
 
   async function save(e) {
     e.preventDefault();
@@ -392,41 +407,164 @@ function SettingsPanel({ business, onChange }) {
     onChange();
   }
 
-  const schema = business.category?.attributeSchema || [];
+  async function deleteMediaItem(id) {
+    if (confirm("Delete this media item?")) {
+      try {
+        await api.deleteEnhancedPortfolio(id);
+        setMediaItems((items) => items.filter((item) => item.id !== id));
+      } catch (e) {
+        alert(`Failed to delete: ${e.message}`);
+      }
+    }
+  }
+
+  const schema = Array.isArray(business.category?.attributeSchema) ? business.category.attributeSchema : [];
 
   return (
     <div>
       <h2>Business settings</h2>
-      {saved && <div className="alert alert-success">Saved.</div>}
-      <form onSubmit={save} className="card" style={{ maxWidth: 480 }}>
-        <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
-        <div className="field"><label>Description</label><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
-        <div className="grid grid-2">
-          <div className="field"><label>City</label><input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></div>
-          <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
-        </div>
-        <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
+      
+      {/* Tabs */}
+      <div className="tabs">
+        <button className={`tab ${settingsTab === "general" ? "active" : ""}`} onClick={() => setSettingsTab("general")}>
+          General
+        </button>
+        <button className={`tab ${settingsTab === "media" ? "active" : ""}`} onClick={() => setSettingsTab("media")}>
+          Photos & Videos
+        </button>
+      </div>
 
-        {schema.length > 0 && <h3>Category details ({business.category.name})</h3>}
-        {schema.map((field) => (
-          <div className="field" key={field.key}>
-            <label>{field.label}</label>
-            {field.type === "boolean" ? (
-              <div className="checkbox-row">
-                <input type="checkbox" checked={!!attrs[field.key]} onChange={(e) => setAttrs((a) => ({ ...a, [field.key]: e.target.checked }))} />
-                <span className="hint">Yes</span>
+      {/* General Settings Tab */}
+      {settingsTab === "general" && (
+        <>
+          {saved && <div className="alert alert-success">Saved.</div>}
+          <form onSubmit={save} className="card" style={{ maxWidth: 480 }}>
+            <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
+            <div className="field"><label>Description</label><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
+            <div className="grid grid-2">
+              <div className="field"><label>City</label><input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></div>
+              <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+            </div>
+            <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
+
+            {schema && schema.length > 0 && <h3>Category details ({business.category.name})</h3>}
+            {schema.map((field) => (
+              <div className="field" key={field.key}>
+                <label>{field.label}</label>
+                {field.type === "boolean" ? (
+                  <div className="checkbox-row">
+                    <input type="checkbox" checked={!!attrs[field.key]} onChange={(e) => setAttrs((a) => ({ ...a, [field.key]: e.target.checked }))} />
+                    <span className="hint">Yes</span>
+                  </div>
+                ) : (
+                  <input
+                    type={field.type === "number" ? "number" : "text"}
+                    value={attrs[field.key] || ""}
+                    onChange={(e) => setAttrs((a) => ({ ...a, [field.key]: e.target.value }))}
+                  />
+                )}
               </div>
-            ) : (
-              <input
-                type={field.type === "number" ? "number" : "text"}
-                value={attrs[field.key] || ""}
-                onChange={(e) => setAttrs((a) => ({ ...a, [field.key]: e.target.value }))}
-              />
-            )}
+            ))}
+            <button className="btn btn-primary btn-block">Save changes</button>
+          </form>
+        </>
+      )}
+
+      {/* Media Management Tab */}
+      {settingsTab === "media" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+            <p style={{ margin: 0, color: "var(--ink-2)" }}>Upload photos and videos to showcase your work to customers</p>
+            <button className="btn btn-primary btn-sm" onClick={() => setShowMediaForm(!showMediaForm)}>
+              {showMediaForm ? "Cancel" : "+ Upload"}
+            </button>
           </div>
-        ))}
-        <button className="btn btn-primary btn-block">Save changes</button>
-      </form>
+
+          {showMediaForm && (
+            <div style={{ marginBottom: "32px" }}>
+              <MediaUpload businessId={business.id} onUploadComplete={() => { setShowMediaForm(false); onChange(); }} onCancel={() => setShowMediaForm(false)} />
+            </div>
+          )}
+
+          {mediaLoading && <p>Loading media…</p>}
+
+          {!mediaLoading && mediaItems.length === 0 && !showMediaForm && (
+            <div className="card" style={{ textAlign: "center", padding: "40px 20px" }}>
+              <p style={{ color: "var(--ink-2)", marginBottom: "16px" }}>No media uploaded yet.</p>
+              <p style={{ color: "var(--ink-2)", fontSize: "0.9rem", marginBottom: "20px" }}>
+                Photos and videos help customers see your work before booking. Start by uploading some!
+              </p>
+              <button className="btn btn-primary" onClick={() => setShowMediaForm(true)}>
+                Upload Your First Photo
+              </button>
+            </div>
+          )}
+
+          {!mediaLoading && mediaItems.length > 0 && (
+            <div className="grid grid-3">
+              {mediaItems.map((item) => (
+                <div key={item.id} className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                  <div style={{ position: "relative", paddingBottom: "66.67%", backgroundColor: "var(--paper-2)", overflow: "hidden" }}>
+                    {item.type === "VIDEO" ? (
+                      <img
+                        src={item.thumbnailUrl || "https://via.placeholder.com/300x200?text=Video"}
+                        alt={item.title}
+                        style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    ) : (
+                      <img
+                        src={item.mediaUrl}
+                        alt={item.title}
+                        style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }}
+                      />
+                    )}
+                    <span style={{
+                      position: "absolute",
+                      top: "8px",
+                      left: "8px",
+                      padding: "4px 8px",
+                      background: item.type === "VIDEO" ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.5)",
+                      color: "white",
+                      borderRadius: "4px",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                    }}>
+                      {item.type === "VIDEO" ? "🎥 Video" : item.type === "CERTIFICATE" ? "📜 Certificate" : item.type === "LICENSE" ? "✅ License" : item.type === "PROJECT" ? "🏗️ Project" : "📸 Photo"}
+                    </span>
+                    {item.verified && (
+                      <span style={{
+                        position: "absolute",
+                        top: "8px",
+                        right: "8px",
+                        padding: "4px 8px",
+                        background: "#10b981",
+                        color: "white",
+                        borderRadius: "4px",
+                        fontSize: "0.75rem",
+                        fontWeight: "600",
+                      }}>
+                        ✓ Verified
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ padding: "12px", flex: 1, display: "flex", flexDirection: "column" }}>
+                    {item.title && <h4 style={{ margin: "0 0 4px 0", fontSize: "0.95rem" }}>{item.title}</h4>}
+                    {item.description && <p style={{ margin: "0 0 8px 0", fontSize: "0.85rem", color: "var(--ink-2)", flex: 1 }}>{item.description}</p>}
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm"
+                      onClick={() => deleteMediaItem(item.id)}
+                      style={{ alignSelf: "flex-start" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
