@@ -2,10 +2,15 @@ import { useEffect, useState } from "react";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
 import MediaUpload from "../components/MediaUpload.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const TABS = ["Bookings", "Services", "Employees", "Messages", "Reviews", "Settings"];
 
+// Tabs that require the business to be APPROVED before they're usable
+const APPROVAL_GATED_TABS = ["Services", "Employees"];
+
 export default function BusinessOwnerDashboard() {
+  const { user } = useAuth();
   const [businesses, setBusinesses] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [tab, setTab] = useState("Bookings");
@@ -25,16 +30,35 @@ export default function BusinessOwnerDashboard() {
 
   const active = businesses.find((b) => b.id === activeId);
 
+  // --- Pending-approval screen shown right after registration ---
+  // Triggered when the owner has no businesses yet and hasn't opened the
+  // new-listing form. They see a clear explanation instead of a blank page.
+  const justRegistered = businesses.length === 0 && !showNewBiz;
+
   return (
     <div className="container page">
       <h1>Business dashboard</h1>
       {error && <div className="alert alert-error">{error}</div>}
 
-      {businesses.length === 0 && !showNewBiz && (
-        <div className="empty-state card">
-          <h3>You haven't listed a business yet</h3>
-          <p>Create your first listing to start accepting bookings.</p>
-          <button className="btn btn-primary" onClick={() => setShowNewBiz(true)}>List a business</button>
+      {justRegistered && (
+        <div className="card" style={{ maxWidth: 560, margin: "40px auto", textAlign: "center", padding: "40px 32px" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏪</div>
+          <h2 style={{ marginBottom: 8 }}>Welcome, {user?.name || "there"}!</h2>
+          <p style={{ color: "var(--ink-2)", marginBottom: 24 }}>
+            You're registered as a business owner. Create your first listing and submit it for review.
+            Once an admin approves it, it will be visible to customers and you can start accepting bookings.
+          </p>
+          <div className="card" style={{ background: "var(--paper-2)", marginBottom: 24, textAlign: "left", padding: "16px 20px" }}>
+            <strong>How it works:</strong>
+            <ol style={{ margin: "8px 0 0 0", paddingLeft: 20, color: "var(--ink-2)", lineHeight: 1.8 }}>
+              <li>Submit your business listing below</li>
+              <li>An admin reviews it (usually within 24 hours)</li>
+              <li>Once approved, your listing goes live and you can add services, manage bookings, and more</li>
+            </ol>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowNewBiz(true)}>
+            Create your listing
+          </button>
         </div>
       )}
 
@@ -66,16 +90,45 @@ export default function BusinessOwnerDashboard() {
             <div className="dash-grid">
               <div className="dash-nav">
                 {TABS.map((t) => (
-                  <button key={t} className={tab === t ? "active" : ""} onClick={() => setTab(t)}>{t}</button>
+                  <button
+                    key={t}
+                    className={tab === t ? "active" : ""}
+                    onClick={() => setTab(t)}
+                    disabled={active.status !== "APPROVED" && APPROVAL_GATED_TABS.includes(t)}
+                    title={active.status !== "APPROVED" && APPROVAL_GATED_TABS.includes(t) ? "Available after admin approval" : undefined}
+                    style={active.status !== "APPROVED" && APPROVAL_GATED_TABS.includes(t) ? { opacity: 0.4, cursor: "not-allowed" } : {}}
+                  >
+                    {t}
+                  </button>
                 ))}
               </div>
               <div>
                 {active.status === "PENDING" && (
-                  <div className="alert alert-error">This listing is awaiting admin approval and isn't visible to customers yet.</div>
+                  <div className="alert" style={{ background: "var(--amber-light, #fef9c3)", borderLeft: "4px solid var(--amber, #f59e0b)", color: "#92400e", marginBottom: 20 }}>
+                    <strong>Awaiting admin approval</strong> — your listing has been submitted and is under review.
+                    You'll be able to add services, manage employees, and accept bookings once it's approved.
+                    No action needed on your end.
+                  </div>
+                )}
+                {active.status === "REJECTED" && (
+                  <div className="alert alert-error" style={{ marginBottom: 20 }}>
+                    <strong>Listing rejected</strong> — this listing was not approved. Please contact support or edit your listing details and resubmit.
+                  </div>
+                )}
+                {active.status === "SUSPENDED" && (
+                  <div className="alert alert-error" style={{ marginBottom: 20 }}>
+                    <strong>Listing suspended</strong> — this listing has been suspended by an admin. Please contact support.
+                  </div>
                 )}
                 {tab === "Bookings" && <BookingsPanel business={active} />}
-                {tab === "Services" && <ServicesPanel business={active} onChange={load} />}
-                {tab === "Employees" && <EmployeesPanel business={active} onChange={load} />}
+                {tab === "Services" && (active.status === "APPROVED"
+                  ? <ServicesPanel business={active} onChange={load} />
+                  : <ApprovalRequired />
+                )}
+                {tab === "Employees" && (active.status === "APPROVED"
+                  ? <EmployeesPanel business={active} onChange={load} />
+                  : <ApprovalRequired />
+                )}
                 {tab === "Messages" && <MessagesPanel business={active} />}
                 {tab === "Reviews" && <ReviewsPanel business={active} />}
                 {tab === "Settings" && <SettingsPanel business={active} onChange={load} />}
@@ -84,6 +137,19 @@ export default function BusinessOwnerDashboard() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function ApprovalRequired() {
+  return (
+    <div className="card" style={{ textAlign: "center", padding: "48px 32px", maxWidth: 480 }}>
+      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>⏳</div>
+      <h3>Pending admin approval</h3>
+      <p style={{ color: "var(--ink-2)" }}>
+        This section will be available once an admin approves your listing.
+        We'll notify you as soon as it's reviewed.
+      </p>
     </div>
   );
 }

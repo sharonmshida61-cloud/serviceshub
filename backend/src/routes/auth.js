@@ -71,6 +71,13 @@ router.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json({ error: "Invalid email or password" });
 
+  if (user.bannedAt) {
+    return res.status(403).json({
+      error: "Your account has been suspended",
+      reason: user.banReason || "Please contact support for more information.",
+    });
+  }
+
   const token = signToken(user);
   res.json({ token, user: sanitize(user) });
 });

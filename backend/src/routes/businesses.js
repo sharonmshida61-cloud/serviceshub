@@ -52,7 +52,7 @@ router.get("/mine", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (
   res.json(businesses.map(parseJsonFields));
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", optionalAuth, async (req, res) => {
   const business = await prisma.business.findUnique({
     where: { id: req.params.id },
     include: {
@@ -64,6 +64,17 @@ router.get("/:id", async (req, res) => {
     },
   });
   if (!business) return res.status(404).json({ error: "Business not found" });
+
+  // Non-approved listings are only visible to their owner or an admin
+  if (business.status !== "APPROVED") {
+    const activeRole = req.user?.currentRole || req.user?.role;
+    const isOwner = req.user?.id === business.ownerId;
+    const isAdmin = activeRole === "ADMIN";
+    if (!isOwner && !isAdmin) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+  }
+
   res.json(parseJsonFields(business));
 });
 
@@ -95,7 +106,8 @@ router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req
 router.patch("/:id", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
-  if (business.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+  const activeRole = req.user.currentRole || req.user.role;
+  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
     return res.status(403).json({ error: "Only the business owner or an admin can edit this listing" });
   }
 
@@ -120,7 +132,8 @@ router.patch("/:id", requireAuth, async (req, res) => {
 router.post("/:id/employees", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
-  if (business.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+  const activeRole = req.user.currentRole || req.user.role;
+  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
     return res.status(403).json({ error: "Only the business owner can add employees" });
   }
   const { userId, title } = req.body || {};
@@ -143,7 +156,8 @@ router.post("/:id/employees", requireAuth, async (req, res) => {
 router.delete("/:id/employees/:employeeId", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
-  if (business.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+  const activeRole = req.user.currentRole || req.user.role;
+  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
     return res.status(403).json({ error: "Only the business owner can remove employees" });
   }
   await prisma.businessEmployee.update({
@@ -158,7 +172,8 @@ router.delete("/:id/employees/:employeeId", requireAuth, async (req, res) => {
 router.post("/:id/availability", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
-  if (business.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+  const activeRole = req.user.currentRole || req.user.role;
+  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
     return res.status(403).json({ error: "Only the business owner can set availability" });
   }
   const { dayOfWeek, startTime, endTime, employeeId } = req.body || {};

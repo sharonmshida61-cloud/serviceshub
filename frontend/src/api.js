@@ -88,6 +88,9 @@ export const api = {
   setBusinessStatus: (id, status) => request(`/admin/businesses/${id}/status`, { method: "PATCH", body: { status } }),
   adminUsers: () => request("/admin/users"),
   setUserRole: (id, role) => request(`/admin/users/${id}/role`, { method: "PATCH", body: { role } }),
+  banUser: (id, reason) => request(`/admin/users/${id}/ban`, { method: "PATCH", body: { reason } }),
+  unbanUser: (id) => request(`/admin/users/${id}/unban`, { method: "PATCH" }),
+  deleteUser: (id) => request(`/admin/users/${id}`, { method: "DELETE" }),
 
   // favorites
   favorites: () => request("/favorites"),

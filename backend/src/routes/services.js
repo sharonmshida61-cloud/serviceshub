@@ -14,7 +14,8 @@ async function assertOwnerOrAdmin(req, res, businessId) {
     res.status(404).json({ error: "Business not found" });
     return null;
   }
-  if (business.ownerId !== req.user.id && req.user.role !== "ADMIN") {
+  const activeRole = req.user.currentRole || req.user.role;
+  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
     res.status(403).json({ error: "Only the business owner can manage services" });
     return null;
   }
@@ -35,6 +36,13 @@ router.post("/", requireAuth, async (req, res) => {
   }
   const business = await assertOwnerOrAdmin(req, res, businessId);
   if (!business) return;
+
+  if (business.status !== "APPROVED") {
+    const activeRole = req.user.currentRole || req.user.role;
+    if (activeRole !== "ADMIN") {
+      return res.status(403).json({ error: "Your listing must be approved by an admin before you can add services" });
+    }
+  }
 
   const service = await prisma.service.create({
     data: {

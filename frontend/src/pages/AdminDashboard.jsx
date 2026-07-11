@@ -149,6 +149,13 @@ function slugify(s) {
 
 function Users() {
   const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [banModal, setBanModal] = useState(null); // user object being banned
+  const [banReason, setBanReason] = useState("");
+  const [deleteModal, setDeleteModal] = useState(null); // user object being deleted
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
   function load() { api.adminUsers().then(setUsers); }
   useEffect(load, []);
 
@@ -157,27 +164,196 @@ function Users() {
     load();
   }
 
+  async function confirmBan() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.banUser(banModal.id, banReason.trim() || undefined);
+      setBanModal(null);
+      setBanReason("");
+      load();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function unban(u) {
+    try { await api.unbanUser(u.id); load(); }
+    catch (e) { setError(e.message); }
+  }
+
+  async function confirmDelete() {
+    setBusy(true);
+    setError("");
+    try {
+      await api.deleteUser(deleteModal.id);
+      setDeleteModal(null);
+      load();
+    } catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  }
+
+  const filtered = users.filter((u) =>
+    !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <div>
       <h2>Users</h2>
+      {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
+
+      <input
+        placeholder="Search by name or email…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ marginBottom: 16, maxWidth: 320 }}
+      />
+
       <table className="data-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>ID (for adding as staff)</th><th></th></tr></thead>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Joined</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
         <tbody>
-          {users.map((u) => (
-            <tr key={u.id}>
-              <td>{u.name}</td>
-              <td>{u.email}</td>
-              <td>{u.role}</td>
-              <td><code style={{ fontSize: "0.72rem" }}>{u.id}</code></td>
+          {filtered.map((u) => (
+            <tr key={u.id} style={u.bannedAt ? { opacity: 0.6, background: "var(--danger-bg, #fef2f2)" } : {}}>
               <td>
-                <select value={u.role} onChange={(e) => setRole(u, e.target.value)}>
-                  {["CUSTOMER", "BUSINESS_OWNER", "EMPLOYEE", "ADMIN"].map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+                {u.name}
+                {u.bannedAt && (
+                  <span style={{ marginLeft: 6, fontSize: "0.7rem", background: "#ef4444", color: "white", padding: "2px 6px", borderRadius: 4, fontWeight: 700 }}>
+                    BANNED
+                  </span>
+                )}
+              </td>
+              <td>{u.email}</td>
+              <td>
+                {u.bannedAt ? (
+                  <span style={{ color: "var(--ink-2)", fontSize: "0.85rem" }}>{u.role}</span>
+                ) : (
+                  <select
+                    value={u.role}
+                    onChange={(e) => setRole(u, e.target.value)}
+                    disabled={u.role === "ADMIN"}
+                  >
+                    {["CUSTOMER", "BUSINESS_OWNER", "EMPLOYEE", "ADMIN"].map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                )}
+              </td>
+              <td>
+                {u.bannedAt ? (
+                  <div>
+                    <div style={{ color: "#ef4444", fontWeight: 600, fontSize: "0.8rem" }}>Banned {new Date(u.bannedAt).toLocaleDateString()}</div>
+                    {u.banReason && <div style={{ color: "var(--ink-2)", fontSize: "0.75rem" }}>"{u.banReason}"</div>}
+                  </div>
+                ) : (
+                  <span style={{ color: "#10b981", fontWeight: 600, fontSize: "0.8rem" }}>Active</span>
+                )}
+              </td>
+              <td style={{ fontSize: "0.8rem", color: "var(--ink-2)" }}>{new Date(u.createdAt).toLocaleDateString()}</td>
+              <td>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {u.role !== "ADMIN" && (
+                    <>
+                      {u.bannedAt ? (
+                        <button className="btn btn-outline btn-sm" onClick={() => unban(u)}>Unban</button>
+                      ) : (
+                        <button
+                          className="btn btn-sm"
+                          style={{ background: "#f59e0b", color: "white", border: "none" }}
+                          onClick={() => { setBanModal(u); setBanReason(""); setError(""); }}
+                        >
+                          Ban
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => { setDeleteModal(u); setError(""); }}
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                </div>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/* Ban confirmation modal */}
+      {banModal && (
+        <div style={modalOverlay}>
+          <div style={modalBox}>
+            <h3 style={{ marginTop: 0 }}>Ban {banModal.name}?</h3>
+            <p style={{ color: "var(--ink-2)" }}>
+              This will immediately block <strong>{banModal.email}</strong> from logging in and
+              suspend all their business listings. You can unban them at any time.
+            </p>
+            <div className="field">
+              <label>Reason (shown to the user)</label>
+              <textarea
+                rows={3}
+                placeholder="e.g. Suspected fraudulent activity, multiple customer complaints…"
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                style={{ width: "100%", boxSizing: "border-box" }}
+              />
+            </div>
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button className="btn btn-outline" onClick={() => setBanModal(null)} disabled={busy}>Cancel</button>
+              <button
+                className="btn btn-sm"
+                style={{ background: "#f59e0b", color: "white", border: "none", padding: "8px 20px" }}
+                onClick={confirmBan}
+                disabled={busy}
+              >
+                {busy ? "Banning…" : "Confirm ban"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteModal && (
+        <div style={modalOverlay}>
+          <div style={modalBox}>
+            <h3 style={{ marginTop: 0, color: "#ef4444" }}>Permanently delete {deleteModal.name}?</h3>
+            <p style={{ color: "var(--ink-2)" }}>
+              This will <strong>permanently remove</strong> the account for <strong>{deleteModal.email}</strong>.
+              Their bookings and reviews will be preserved for record-keeping, but the account itself cannot be recovered.
+            </p>
+            <p style={{ color: "#ef4444", fontWeight: 600, fontSize: "0.9rem" }}>
+              Consider banning instead — it's reversible. Only delete if absolutely necessary.
+            </p>
+            {error && <div className="alert alert-error">{error}</div>}
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
+              <button className="btn btn-outline" onClick={() => setDeleteModal(null)} disabled={busy}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmDelete} disabled={busy}>
+                {busy ? "Deleting…" : "Yes, delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+const modalOverlay = {
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+  display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+};
+
+const modalBox = {
+  background: "var(--paper, #fff)", borderRadius: 12, padding: 28,
+  maxWidth: 480, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+};

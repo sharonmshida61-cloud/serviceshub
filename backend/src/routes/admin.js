@@ -55,4 +55,79 @@ router.patch("/users/:id/role", async (req, res) => {
   res.json(safe);
 });
 
+// Ban a user (soft ban — account stays in DB, all requests blocked)
+router.patch("/users/:id/ban", async (req, res) => {
+  const { reason } = req.body || {};
+  if (req.params.id === req.user.id) {
+    return res.status(400).json({ error: "You cannot ban your own account" });
+  }
+  const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.role === "ADMIN") {
+    return res.status(403).json({ error: "Admin accounts cannot be banned" });
+  }
+
+  const user = await prisma.user.update({
+    where: { id: req.params.id },
+    data: { bannedAt: new Date(), banReason: reason || null },
+  });
+
+  // Suspend all their businesses too so they stop appearing in search
+  await prisma.business.updateMany({
+    where: { ownerId: req.params.id, status: "APPROVED" },
+    data: { status: "SUSPENDED" },
+  });
+
+  const { passwordHash, ...safe } = user;
+  res.json(safe);
+});
+
+// Unban a user
+router.patch("/users/:id/unban", async (req, res) => {
+  const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!target) return res.status(404).json({ error: "User not found" });
+
+  const user = await prisma.user.update({
+    where: { id: req.params.id },
+    data: { bannedAt: null, banReason: null },
+  });
+
+  const { passwordHash, ...safe } = user;
+  res.json(safe);
+});
+
+// Permanently delete a user and all their data
+router.delete("/users/:id", async (req, res) => {
+  if (req.params.id === req.user.id) {
+    return res.status(400).json({ error: "You cannot delete your own account" });
+  }
+  const target = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!target) return res.status(404).json({ error: "User not found" });
+  if (target.role === "ADMIN") {
+    return res.status(403).json({ error: "Admin accounts cannot be deleted this way" });
+  }
+
+  // Delete in dependency order to satisfy foreign-key constraints
+  await prisma.platformLoyaltyTransaction.deleteMany({ where: { account: { userId: req.params.id } } });
+  await prisma.platformLoyaltyAccount.deleteMany({ where: { userId: req.params.id } });
+  await prisma.notification.deleteMany({ where: { userId: req.params.id } });
+  await prisma.userSettings.deleteMany({ where: { userId: req.params.id } });
+  await prisma.smartMatchRequest.deleteMany({ where: { userId: req.params.id } });
+  await prisma.waitingList.deleteMany({ where: { userId: req.params.id } });
+  await prisma.emergencyBooking.deleteMany({ where: { userId: req.params.id } });
+  await prisma.favorite.deleteMany({ where: { userId: req.params.id } });
+  await prisma.loyaltyCard.deleteMany({ where: { userId: req.params.id } });
+  await prisma.message.deleteMany({ where: { senderId: req.params.id } });
+
+  // Reviews and bookings: anonymise rather than hard-delete to preserve history
+  await prisma.review.updateMany({ where: { customerId: req.params.id }, data: { customerId: req.params.id } });
+  await prisma.businessEmployee.updateMany({ where: { userId: req.params.id }, data: { active: false } });
+
+  // Suspend owned businesses
+  await prisma.business.updateMany({ where: { ownerId: req.params.id }, data: { status: "SUSPENDED" } });
+
+  await prisma.user.delete({ where: { id: req.params.id } });
+  res.status(204).end();
+});
+
 module.exports = router;

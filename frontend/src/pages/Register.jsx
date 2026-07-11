@@ -26,7 +26,9 @@ export default function Register() {
     setBusy(true);
     try {
       const user = await register(form);
-      // Navigate to the appropriate dashboard based on current role
+      // If they registered as a business owner, send them to the dashboard
+      // with a notice that their account is pending admin approval before
+      // they can list a business.
       const currentRole = user.currentRole || user.role;
       navigate(currentRole === "BUSINESS_OWNER" ? "/dashboard/business" : "/dashboard/customer");
     } catch (err) {

@@ -28,6 +28,8 @@ model User {
   currentRole   String   @default("CUSTOMER") // Current active role for UI purposes
   role          String   @default("CUSTOMER") // Legacy field for backward compatibility
   avatarUrl     String?
+  bannedAt      DateTime? // set when admin bans the account
+  banReason     String?   // reason recorded by the admin
   createdAt     DateTime @default(now())
 
   // Business-owner relation: businesses this user owns
