@@ -1,28 +1,48 @@
 services:
+  # PostgreSQL Database
+  - type: pserv
+    name: localservices-db
+    plan: free
+    env: docker
+    region: oregon
+    
+  # Backend API
   - type: web
     name: localservices-backend
     env: node
     plan: free
-    buildCommand: cd backend && npm install && npm run prisma:generate
+    region: oregon
+    buildCommand: cd backend && npm install && npx prisma generate
     startCommand: cd backend && npm start
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: localservices-db
+          property: connectionString
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
       - key: CORS_ORIGIN
-        sync: false
+        value: https://localservices-frontend.onrender.com
       - key: API_BASE_URL
-        sync: false
+        value: https://localservices-backend.onrender.com
 
-  - type: static
+  # Frontend Static Site
+  - type: web
     name: localservices-frontend
+    env: static
+    plan: free
+    region: oregon
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: VITE_API_URL
         value: https://localservices-backend.onrender.com/api
