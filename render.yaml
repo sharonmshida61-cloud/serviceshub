@@ -1,19 +1,21 @@
-services:
+databases:
   # PostgreSQL Database
-  - type: pserv
-    name: localservices-db
+  - name: localservices-db
+    databaseName: localservices
+    user: localservices_user
     plan: free
-    env: docker
     region: oregon
-    
+
+services:
   # Backend API
   - type: web
     name: localservices-backend
     env: node
     plan: free
     region: oregon
-    buildCommand: cd backend && npm install && npx prisma generate
-    startCommand: cd backend && npm start
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -37,8 +39,9 @@ services:
     env: static
     plan: free
     region: oregon
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     routes:
       - type: rewrite
         source: /*
