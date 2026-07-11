@@ -15,7 +15,7 @@ function parseJsonFields(biz) {
 // Query params: category=slug, city=, minRating=, sort=rating|price|newest
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
-  const { category, city, minRating, q } = req.query;
+  const { category, city, minRating, q, sort = "rating" } = req.query;
   const where = { status: "APPROVED" };
 
   if (category) {
@@ -23,20 +23,36 @@ router.get("/", async (req, res) => {
     if (!cat) return res.json([]);
     where.categoryId = cat.id;
   }
-  if (city) where.city = { contains: city };
   if (minRating) where.avgRating = { gte: Number(minRating) };
-  if (q) where.name = { contains: q };
 
   let businesses = await prisma.business.findMany({
     where,
     include: { category: true, services: { where: { active: true } } },
   });
 
-  const sort = req.query.sort || "rating";
+  // Case-insensitive JS filtering (SQLite doesn't support Prisma mode: insensitive)
+  if (q && q.trim()) {
+    const term = q.trim().toLowerCase();
+    businesses = businesses.filter(
+      (b) =>
+        b.name.toLowerCase().includes(term) ||
+        (b.description && b.description.toLowerCase().includes(term)) ||
+        (b.city && b.city.toLowerCase().includes(term))
+    );
+  }
+  if (city && city.trim()) {
+    const cityTerm = city.trim().toLowerCase();
+    businesses = businesses.filter(
+      (b) => b.city && b.city.toLowerCase().includes(cityTerm)
+    );
+  }
+
+  // Sorting
   if (sort === "rating") businesses.sort((a, b) => b.avgRating - a.avgRating);
-  if (sort === "newest") businesses.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  if (sort === "price") {
-    const minPrice = (b) => Math.min(...b.services.map((s) => s.priceCents), Infinity);
+  else if (sort === "newest") businesses.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  else if (sort === "price") {
+    const minPrice = (b) =>
+      b.services.length ? Math.min(...b.services.map((s) => s.priceCents)) : Infinity;
     businesses.sort((a, b) => minPrice(a) - minPrice(b));
   }
 
@@ -52,6 +68,73 @@ router.get("/mine", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (
   res.json(businesses.map(parseJsonFields));
 });
 
+// ---------------------------------------------------------------------------
+// CUSTOMERS: all customers who have booked this business, with full history
+// Only the business owner or an admin can access this.
+// ---------------------------------------------------------------------------
+router.get("/:id/customers", requireAuth, async (req, res) => {
+  const business = await prisma.business.findUnique({ where: { id: req.params.id } });
+  if (!business) return res.status(404).json({ error: "Business not found" });
+
+  const activeRole = req.user.currentRole || req.user.role;
+  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
+    return res.status(403).json({ error: "Only the business owner can view customer details" });
+  }
+
+  // Pull every booking for this business, including the customer profile and payment
+  const bookings = await prisma.booking.findMany({
+    where: { businessId: req.params.id },
+    include: {
+      customer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          createdAt: true,
+          bannedAt: true,
+          banReason: true,
+        },
+      },
+      service: { select: { id: true, name: true, priceCents: true, durationMinutes: true } },
+      payment: true,
+      review: { select: { id: true, rating: true, comment: true, createdAt: true } },
+    },
+    orderBy: { scheduledAt: "desc" },
+  });
+
+  // Group bookings by customer so the owner sees one card per customer
+  const customerMap = new Map();
+  for (const booking of bookings) {
+    const cid = booking.customer.id;
+    if (!customerMap.has(cid)) {
+      customerMap.set(cid, {
+        customer: booking.customer,
+        bookings: [],
+        totalSpentCents: 0,
+        paidCount: 0,
+        unpaidCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+      });
+    }
+    const entry = customerMap.get(cid);
+    entry.bookings.push(booking);
+
+    if (booking.payment?.status === "PAID") {
+      entry.totalSpentCents += booking.payment.amountCents;
+      entry.paidCount++;
+    } else if (["PENDING", "CONFIRMED"].includes(booking.status) && !booking.payment) {
+      entry.unpaidCount++;
+    }
+    if (booking.status === "COMPLETED") entry.completedCount++;
+    if (booking.status === "CANCELLED" || booking.status === "DECLINED") entry.cancelledCount++;
+  }
+
+  res.json(Array.from(customerMap.values()));
+});
+
+// Get a single business by ID
 router.get("/:id", optionalAuth, async (req, res) => {
   const business = await prisma.business.findUnique({
     where: { id: req.params.id },

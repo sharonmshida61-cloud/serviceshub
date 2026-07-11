@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const BASE_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "/api")).replace(/\/$/, "");
 
 function getToken() {
   return localStorage.getItem("token");
@@ -66,6 +66,7 @@ export const api = {
   createBooking: (payload) => request("/bookings", { method: "POST", body: payload }),
   myBookings: () => request("/bookings/mine"),
   businessBookings: (businessId) => request(`/bookings/business/${businessId}`),
+  businessCustomers: (businessId) => request(`/businesses/${businessId}/customers`),
   updateBookingStatus: (id, status) => request(`/bookings/${id}/status`, { method: "PATCH", body: { status } }),
 
   // payments
@@ -158,6 +159,22 @@ export const api = {
   // AI review summary
   reviewSummary: (businessId) => request(`/reviewsummary/${businessId}`, { auth: false }),
   regenerateReviewSummary: (businessId) => request(`/reviewsummary/${businessId}/regenerate`, { method: "POST" }),
+
+  // file upload (multipart — returns { url, type })
+  uploadMedia: (businessId, file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const token = getToken();
+    return fetch(`${BASE_URL}/upload/${businessId}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+      return data;
+    });
+  },
 
   // enhanced portfolio (photos, videos, certificates, licenses)
   enhancedPortfolio: (businessId, type) => request(`/enhancedportfolio/business/${businessId}${type ? `?type=${type}` : ""}`, { auth: false }),

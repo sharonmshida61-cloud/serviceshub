@@ -1,16 +1,15 @@
 // ==========================================================================
 // LocalServices Platform — Database Schema
-// Uses SQLite for zero-config local development.
-// To move to Postgres for production: change provider to "postgresql" and
-// set DATABASE_URL to a postgres connection string — no model changes needed.
-// ==========================================================================
+// Uses PostgreSQL in production deployment and a standard Prisma datasource.
+// Render can supply DATABASE_URL directly via environment variables.
+// ========================================================================== 
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

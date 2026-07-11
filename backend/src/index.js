@@ -25,12 +25,16 @@ const emergencyRoutes = require("./routes/emergency");
 const platformLoyaltyRoutes = require("./routes/platformloyalty");
 const reviewSummaryRoutes = require("./routes/reviewsummary");
 const enhancedPortfolioRoutes = require("./routes/enhancedportfolio");
+const uploadRoutes = require("./routes/upload");
 
 const app = express();
 
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use(express.json());
 app.use(morgan("dev"));
+
+// Serve uploaded media files (photos/videos) as static assets
+app.use("/uploads", express.static(require("path").join(__dirname, "../uploads")));
 
 app.get("/health", (req, res) => res.json({ ok: true, service: "local-services-backend" }));
 
@@ -56,6 +60,7 @@ app.use("/api/emergency", emergencyRoutes);
 app.use("/api/platformloyalty", platformLoyaltyRoutes);
 app.use("/api/reviewsummary", reviewSummaryRoutes);
 app.use("/api/enhancedportfolio", enhancedPortfolioRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // Central error handler — keeps error shapes consistent across the API.
 app.use((err, req, res, next) => {
@@ -65,5 +70,5 @@ app.use((err, req, res, next) => {
 
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
+const PORT = Number(process.env.PORT) || 4000;
+app.listen(PORT, "0.0.0.0", () => console.log(`API listening on http://0.0.0.0:${PORT}`));

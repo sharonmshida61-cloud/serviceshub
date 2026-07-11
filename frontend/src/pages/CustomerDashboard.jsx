@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarInput } from "../components/StarRating.jsx";
+import { useLanguage } from "../context/LanguageContext.jsx";
 
 export default function CustomerDashboard() {
+  const { t } = useLanguage();
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState("");
   const [reviewFor, setReviewFor] = useState(null);
@@ -56,13 +58,13 @@ export default function CustomerDashboard() {
 
   return (
     <div className="container page">
-      <h1>My bookings</h1>
+      <h1>{t("dashboard.customer.myBookings")}</h1>
       {error && <div className="alert alert-error">{error}</div>}
       {bookings.length === 0 && (
         <div className="empty-state card">
-          <h3>No bookings yet</h3>
-          <p>Head back to the directory and book your first service.</p>
-          <Link to="/"><button className="btn btn-primary">Discover providers</button></Link>
+          <h3>{t("dashboard.customer.noBookings")}</h3>
+          <p>{t("dashboard.customer.noBookings.desc")}</p>
+          <Link to="/browse"><button className="btn btn-primary">{t("dashboard.customer.discoverProviders")}</button></Link>
         </div>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -74,13 +76,13 @@ export default function CustomerDashboard() {
                   <Link to={`/business/${b.businessId}`}>{b.business?.name}</Link>
                 </h3>
                 <p style={{ margin: 0 }}>{b.service?.name} · {new Date(b.scheduledAt).toLocaleString()}</p>
-                {b.notes && <p className="hint">Note: {b.notes}</p>}
+                {b.notes && <p className="hint">{t("dashboard.customer.note")} {b.notes}</p>}
               </div>
               <div style={{ textAlign: "right" }}>
                 <span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span>
                 <div style={{ fontWeight: 700, marginTop: 6 }}>{formatMoney(b.priceCents)}</div>
                 <div style={{ fontSize: "0.8rem", color: "var(--ink-2)" }}>
-                  {b.payment?.status === "PAID" ? "Paid ✓" : "Not paid yet"}
+                  {b.payment?.status === "PAID" ? t("dashboard.customer.paid") : t("dashboard.customer.notPaid")}
                 </div>
               </div>
             </div>
@@ -88,21 +90,21 @@ export default function CustomerDashboard() {
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
               {b.status !== "CANCELLED" && b.status !== "DECLINED" && b.payment?.status !== "PAID" && (
                 <button className="btn btn-primary btn-sm" disabled={busyId === b.id} onClick={() => pay(b)}>
-                  {busyId === b.id ? "Processing…" : "Pay now"}
+                  {busyId === b.id ? t("dashboard.customer.processing") : t("dashboard.customer.payNow")}
                 </button>
               )}
               {["PENDING", "CONFIRMED"].includes(b.status) && (
                 <button className="btn btn-danger btn-sm" disabled={busyId === b.id} onClick={() => cancel(b)}>
-                  Cancel
+                  {t("dashboard.customer.cancelBooking")}
                 </button>
               )}
-              <Link to={`/business/${b.businessId}`}><button className="btn btn-outline btn-sm">Message provider</button></Link>
+              <Link to={`/business/${b.businessId}`}><button className="btn btn-outline btn-sm">{t("dashboard.customer.messageProvider")}</button></Link>
               {b.status === "COMPLETED" && !b.review && (
                 <button className="btn btn-outline btn-sm" onClick={() => setReviewFor(reviewFor === b.id ? null : b.id)}>
-                  Leave a review
+                  {t("dashboard.customer.leaveReview")}
                 </button>
               )}
-              {b.review && <span className="hint">You rated this {b.review.rating}★</span>}
+              {b.review && <span className="hint">{t("dashboard.customer.rated", "You rated this {rating}★").replace("{rating}", b.review.rating)}</span>}
             </div>
 
             {reviewFor === b.id && (
@@ -110,13 +112,13 @@ export default function CustomerDashboard() {
                 <StarInput value={rating} onChange={setRating} />
                 <textarea
                   rows={2}
-                  placeholder="How did it go?"
+                  placeholder={t("dashboard.customer.howDidItGo")}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   style={{ width: "100%", marginTop: 8, padding: 10, borderRadius: 8, border: "1px solid var(--line)" }}
                 />
                 <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => submitReview(b)}>
-                  Submit review
+                  {t("dashboard.customer.submitReview")}
                 </button>
               </div>
             )}

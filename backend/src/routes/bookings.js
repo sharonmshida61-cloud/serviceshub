@@ -44,10 +44,11 @@ router.get("/business/:businessId", requireAuth, requireRole("BUSINESS_OWNER", "
   const business = await prisma.business.findUnique({ where: { id: req.params.businessId } });
   if (!business) return res.status(404).json({ error: "Business not found" });
 
-  if (req.user.role === "BUSINESS_OWNER" && business.ownerId !== req.user.id) {
+  const activeRole = req.user.currentRole || req.user.role;
+  if (activeRole === "BUSINESS_OWNER" && business.ownerId !== req.user.id) {
     return res.status(403).json({ error: "Not your business" });
   }
-  if (req.user.role === "EMPLOYEE") {
+  if (activeRole === "EMPLOYEE") {
     const staffRecord = await prisma.businessEmployee.findFirst({
       where: { businessId: business.id, userId: req.user.id, active: true },
     });
@@ -71,11 +72,12 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   const booking = await prisma.booking.findUnique({ where: { id: req.params.id }, include: { business: true } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
 
+  const activeRole = req.user.currentRole || req.user.role;
   const isCustomer = req.user.id === booking.customerId;
-  const isOwner = req.user.role === "BUSINESS_OWNER" && req.user.id === booking.business.ownerId;
-  const isAdmin = req.user.role === "ADMIN";
+  const isOwner = activeRole === "BUSINESS_OWNER" && req.user.id === booking.business.ownerId;
+  const isAdmin = activeRole === "ADMIN";
   let isStaff = false;
-  if (req.user.role === "EMPLOYEE") {
+  if (activeRole === "EMPLOYEE") {
     isStaff = !!(await prisma.businessEmployee.findFirst({
       where: { businessId: booking.businessId, userId: req.user.id, active: true },
     }));

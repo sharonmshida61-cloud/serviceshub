@@ -5,9 +5,14 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon src/index.js",
+    "prestart": "prisma generate && prisma db push --accept-data-loss",
     "start": "node src/index.js",
     "prisma:generate": "prisma generate",
+    "prisma:deploy": "prisma db push --accept-data-loss",
     "prisma:migrate": "prisma migrate dev --name init",
+    "seed": "node prisma/seed.js"
+  },
+  "prisma": {
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
@@ -18,7 +23,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "multer": "^2.0.1",
+    "multer": "^2.2.0",
     "qrcode": "^1.5.4",
     "zod": "^3.23.8"
   },

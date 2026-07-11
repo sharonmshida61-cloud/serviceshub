@@ -37,7 +37,7 @@ export default function Settings() {
   }
 
   if (loading) return <div className="container page">{t("common.loading")}</div>;
-  if (!settings) return <div className="container page">Unable to load settings</div>;
+  if (!settings) return <div className="container page">{t("settings.loadError")}</div>;
 
   return (
     <div className="container page">

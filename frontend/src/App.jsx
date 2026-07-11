@@ -11,6 +11,8 @@ import BusinessOwnerDashboard from "./pages/BusinessOwnerDashboard.jsx";
 import EmployeeDashboard from "./pages/EmployeeDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import Settings from "./pages/Settings.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import Browse from "./pages/Browse.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
 import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
@@ -22,11 +24,16 @@ const DASHBOARD_BY_ROLE = {
   ADMIN: "/dashboard/admin",
 };
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "/api")).replace(/\/$/, "");
+
 export default function App() {
   const { user, logout, loading } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const closeMobileNav = () => setMobileMenuOpen(false);
 
   // Get current active role (or fall back to first available role)
   const currentRole = user?.currentRole || user?.role;
@@ -36,20 +43,38 @@ export default function App() {
     <div>
       <header className="topbar">
         <div className="container">
-          <Link to="/" className="brand">
-            Nearby<span className="dot">•</span>
-          </Link>
-          <nav className="nav-links">
-            <Link to="/">{t("nav.discover")}</Link>
+          <div className="topbar-main">
+            <Link to="/" className="brand" onClick={closeMobileNav}>
+              Nearby<span className="dot">•</span>
+            </Link>
+            <button
+              type="button"
+              className="mobile-nav-toggle"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-expanded={mobileMenuOpen}
+              aria-label={t("nav.toggleMenu")}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
+          </div>
+          <nav className={`nav-links ${mobileMenuOpen ? "mobile-open" : ""}`}>
+            {(!user || currentRole !== "CUSTOMER") && (
+              <Link to={user ? "/browse" : "/"} onClick={closeMobileNav}>{t("nav.discover")}</Link>
+            )}
             {!loading && user && (
               <>
-                <Link to={DASHBOARD_BY_ROLE[currentRole]}>{t("nav.dashboard")}</Link>
-                <Link to="/settings">{t("nav.settings")}</Link>
+                <Link to={DASHBOARD_BY_ROLE[currentRole]} onClick={closeMobileNav}>{t("nav.dashboard")}</Link>
+                <Link to="/settings" onClick={closeMobileNav}>{t("nav.settings")}</Link>
                 <NotificationBell />
                 <div style={{ position: "relative", display: "inline-block" }}>
                   <button 
                     className="role-badge" 
-                    onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
+                    onClick={() => {
+                      setShowRoleSwitcher(!showRoleSwitcher);
+                      closeMobileNav();
+                    }}
                     style={{ cursor: availableRoles.length > 1 ? "pointer" : "default" }}
                   >
                     {currentRole.replace("_", " ")}
@@ -74,7 +99,7 @@ export default function App() {
                           onClick={() => {
                             // Call switch role endpoint
                             const token = localStorage.getItem("token");
-                            fetch(`http://localhost:4000/api/auth/switchRole/${role}`, {
+                            fetch(`${API_BASE_URL}/auth/switchRole/${role}`, {
                               method: "POST",
                               headers: { Authorization: `Bearer ${token}` }
                             })
@@ -84,6 +109,7 @@ export default function App() {
                                 window.location.reload();
                               });
                             setShowRoleSwitcher(false);
+                            closeMobileNav();
                           }}
                           style={{
                             display: "block",
@@ -107,6 +133,7 @@ export default function App() {
                   onClick={() => {
                     logout();
                     navigate("/");
+                    closeMobileNav();
                   }}
                 >
                   {t("nav.signOut")}
@@ -115,10 +142,8 @@ export default function App() {
             )}
             {!loading && !user && (
               <>
-                <Link to="/login">{t("nav.signIn")}</Link>
-                <Link to="/register">
-                  <button className="btn btn-primary btn-sm">{t("nav.join")}</button>
-                </Link>
+                <Link to="/login" onClick={closeMobileNav}>{t("nav.signIn")}</Link>
+                <Link to="/register" className="btn btn-primary btn-sm" onClick={closeMobileNav}>{t("nav.join")}</Link>
               </>
             )}
             <LanguageSwitcher />
@@ -128,8 +153,10 @@ export default function App() {
 
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/browse" element={<Browse />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/business/:id" element={<BusinessDetail />} />
         <Route path="/settings" element={
           <ProtectedRoute>

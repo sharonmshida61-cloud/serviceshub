@@ -71,6 +71,29 @@ npm run dev                  # http://localhost:5173
 The frontend expects the API at `http://localhost:4000/api` by default; set
 `VITE_API_URL` in a `frontend/.env` file to point elsewhere.
 
+## Deploying to Render
+
+This repository now includes a [render.yaml](render.yaml) blueprint for a simple Render deployment:
+
+- **Backend web service**: runs the Express API from [backend](backend)
+- **Frontend static site**: builds the Vite app from [frontend](frontend)
+- **Environment variables**: set `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGIN`, `VITE_API_URL` and `API_BASE_URL`
+
+### Render service settings
+
+Backend:
+- Build command: `cd backend && npm install && npm run prisma:generate`
+- Start command: `cd backend && npm start`
+- Health check path: `/health`
+
+Frontend:
+- Build command: `cd frontend && npm install && npm run build`
+- Publish directory: `frontend/dist`
+
+### Important production note
+
+The app is still configured for SQLite in [backend/prisma/schema.prisma](backend/prisma/schema.prisma), which is fine for local development but not ideal for a long-lived Render deployment. For a production-grade deployment, switch the Prisma datasource provider to `postgresql` and connect it to a managed PostgreSQL instance.
+
 ## Moving to production
 
 - **Database**: switch `backend/prisma/schema.prisma`'s datasource

@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useLanguage } from "../context/LanguageContext.jsx";
 import { StarDisplay } from "../components/StarRating.jsx";
 import MediaGallery from "../components/MediaGallery.jsx";
 
 export default function BusinessDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [business, setBusiness] = useState(null);
   const [error, setError] = useState("");
@@ -59,7 +61,7 @@ export default function BusinessDetail() {
   }
 
   async function submitBooking(service) {
-    if (!user) return navigate("/login");
+    if (!user) return navigate(`/login?redirect=/business/${id}`);
     if (user.role !== "CUSTOMER") return setError("Only customer accounts can book services.");
     if (!scheduledAt) return setError("Choose a date and time first.");
     setBusy(true);
@@ -85,9 +87,14 @@ export default function BusinessDetail() {
   }
 
   if (error && !business) return <div className="container page"><div className="alert alert-error">{error}</div></div>;
-  if (!business) return <div className="container page">Loading…</div>;
+  if (!business) return <div className="container page">{t("common.loading")}</div>;
 
   const attrs = Object.entries(business.attributes || {}).filter(([, v]) => v !== "" && v !== false);
+  // Merge both portfolio sources; enhanced portfolio takes priority
+  const allMedia = [
+    ...enhancedPortfolio,
+    ...portfolio.map((p) => ({ ...p, type: "PHOTO", mediaUrl: p.imageUrl })),
+  ];
 
   return (
     <div className="container page">
@@ -118,129 +125,44 @@ export default function BusinessDetail() {
 
       {loyaltyCard && (
         <div className="card" style={{ background: "#f0f8ff", marginTop: 16 }}>
-          <h3>🎉 Loyalty Card</h3>
+          <h3>🎉 {t("business.loyaltyCard")}</h3>
           <div style={{ display: "flex", gap: 24 }}>
+            <div><strong>{t("business.points")}:</strong> {loyaltyCard.points}</div>
+            <div><strong>{t("business.visits")}:</strong> {loyaltyCard.visits}</div>
             <div>
-              <strong>Points:</strong> {loyaltyCard.points}
-            </div>
-            <div>
-              <strong>Visits:</strong> {loyaltyCard.visits}
-            </div>
-            <div>
-              <strong>Tier:</strong> <span style={{ textTransform: "capitalize", color: loyaltyCard.tier === "platinum" ? "#a78bfa" : loyaltyCard.tier === "gold" ? "#fbbf24" : loyaltyCard.tier === "silver" ? "#9ca3af" : "#cd7f32" }}>{loyaltyCard.tier}</span>
+              <strong>{t("business.tier")}:</strong>{" "}
+              <span style={{ textTransform: "capitalize", color: loyaltyCard.tier === "platinum" ? "#a78bfa" : loyaltyCard.tier === "gold" ? "#fbbf24" : loyaltyCard.tier === "silver" ? "#9ca3af" : "#cd7f32" }}>
+                {loyaltyCard.tier}
+              </span>
             </div>
           </div>
         </div>
       )}
 
-      {portfolio.length > 0 && (
+      {/* ---- Media gallery — shown prominently before services ---- */}
+      {allMedia.length > 0 && (
         <div style={{ marginTop: 32 }}>
-          <h2>Portfolio</h2>
-          <div className="grid grid-3">
-            {portfolio.map((item) => (
-              <div key={item.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <img src={item.imageUrl} alt={item.title || "Portfolio item"} style={{ width: "100%", height: 200, objectFit: "cover" }} />
-                {(item.title || item.description) && (
-                  <div style={{ padding: 12 }}>
-                    {item.title && <h4 style={{ margin: "0 0 4px 0" }}>{item.title}</h4>}
-                    {item.description && <p style={{ margin: 0, fontSize: "0.9rem" }}>{item.description}</p>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {enhancedPortfolio.length > 0 && (
-        <div style={{ marginTop: 32 }}>
-          <h2>Credentials & Work</h2>
-          <div className="grid grid-3">
-            {enhancedPortfolio.map((item) => (
-              <div key={item.id} className="card" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ position: "relative" }}>
-                  {item.type === "VIDEO" ? (
-                    <video
-                      src={item.mediaUrl}
-                      poster={item.thumbnailUrl}
-                      controls
-                      style={{ width: "100%", height: 200, objectFit: "cover", background: "#000" }}
-                    />
-                  ) : (
-                    <img
-                      src={item.thumbnailUrl || item.mediaUrl}
-                      alt={item.title || item.type}
-                      style={{ width: "100%", height: 200, objectFit: "cover" }}
-                    />
-                  )}
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 8,
-                      left: 8,
-                      padding: "4px 8px",
-                      background: item.type === "CERTIFICATE" || item.type === "LICENSE" ? "#10b981" : item.type === "VIDEO" ? "#8b5cf6" : "#3b82f6",
-                      color: "white",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {item.type === "CERTIFICATE" ? "📜 Certificate" : item.type === "LICENSE" ? "✅ License" : item.type === "VIDEO" ? "🎥 Video" : item.type === "PROJECT" ? "🏗️ Project" : "📸 Photo"}
-                  </span>
-                  {item.verified && (
-                    <span
-                      style={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        padding: "4px 8px",
-                        background: "#059669",
-                        color: "white",
-                        borderRadius: 4,
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      ✓ Verified
-                    </span>
-                  )}
-                </div>
-                {(item.title || item.description) && (
-                  <div style={{ padding: 12 }}>
-                    {item.title && <h4 style={{ margin: "0 0 4px 0" }}>{item.title}</h4>}
-                    {item.description && <p style={{ margin: 0, fontSize: "0.9rem", color: "#666" }}>{item.description}</p>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <h2>{t("business.mediaGallery")}</h2>
+          <MediaGallery items={allMedia} title={t("business.mediaGallery")} />
         </div>
       )}
 
       {success && <div className="alert alert-success">{success}</div>}
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Media Gallery - prominently display photos and videos during booking */}
-      {enhancedPortfolio.length > 0 && (
-        <div style={{ marginTop: 32, marginBottom: 32 }}>
-          <MediaGallery items={enhancedPortfolio} title="Gallery" />
-        </div>
-      )}
-
       {/* Review Summary - help customers make informed decisions */}
       {reviewSummary && (
         <div className="card" style={{ marginTop: 24, marginBottom: 32, borderLeft: "4px solid var(--amber)" }}>
-          <h3>Customer Reviews Summary</h3>
+          <h3>{t("business.customerReviewsSummary")}</h3>
           <div className="grid grid-2" style={{ gap: "16px", marginBottom: "16px" }}>
             <div>
-              <p style={{ margin: "0 0 4px 0", color: "var(--ink-2)", fontSize: "0.85rem" }}>OVERALL SENTIMENT</p>
+              <p style={{ margin: "0 0 4px 0", color: "var(--ink-2)", fontSize: "0.85rem" }}>{t("business.overallSentiment")}</p>
               <div style={{ fontSize: "1.1rem", fontWeight: "700", textTransform: "capitalize", color: reviewSummary.sentiment === "positive" ? "var(--good)" : reviewSummary.sentiment === "negative" ? "var(--bad)" : "var(--amber)" }}>
                 {reviewSummary.sentiment}
               </div>
             </div>
             <div>
-              <p style={{ margin: "0 0 4px 0", color: "var(--ink-2)", fontSize: "0.85rem" }}>TOTAL REVIEWS</p>
+              <p style={{ margin: "0 0 4px 0", color: "var(--ink-2)", fontSize: "0.85rem" }}>{t("business.totalReviews")}</p>
               <div style={{ fontSize: "1.1rem", fontWeight: "700" }}>{business.reviewCount}</div>
             </div>
           </div>
@@ -250,7 +172,7 @@ export default function BusinessDetail() {
               const strengths = typeof reviewSummary.strengths === "string" ? JSON.parse(reviewSummary.strengths) : reviewSummary.strengths || [];
               return strengths && strengths.length > 0 ? (
                 <div>
-                  <p style={{ fontWeight: "600", marginBottom: "8px", color: "var(--good)" }}>✓ What customers love:</p>
+                  <p style={{ fontWeight: "600", marginBottom: "8px", color: "var(--good)" }}>✓ {t("business.whatCustomersLove")}</p>
                   <div className="attr-list">
                     {strengths.map((strength, i) => (
                       <span key={i} className="attr-chip">{strength}</span>
@@ -267,7 +189,7 @@ export default function BusinessDetail() {
               const concerns = typeof reviewSummary.concerns === "string" ? JSON.parse(reviewSummary.concerns) : reviewSummary.concerns || [];
               return concerns && concerns.length > 0 ? (
                 <div style={{ marginTop: "12px" }}>
-                  <p style={{ fontWeight: "600", marginBottom: "8px", color: "var(--bad)" }}>⚠ Common feedback:</p>
+                  <p style={{ fontWeight: "600", marginBottom: "8px", color: "var(--bad)" }}>⚠ {t("business.commonFeedback")}</p>
                   <div className="attr-list">
                     {concerns.map((concern, i) => (
                       <span key={i} className="attr-chip">{concern}</span>
@@ -284,8 +206,8 @@ export default function BusinessDetail() {
 
       <div className="grid grid-2" style={{ marginTop: 32, alignItems: "start" }}>
         <div>
-          <h2>Services</h2>
-          {business.services?.length === 0 && <p>No services listed yet.</p>}
+          <h2>{t("business.services")}</h2>
+          {business.services?.length === 0 && <p>{t("business.noServices")}</p>}
           {business.services?.map((s) => (
             <div className="card" style={{ marginBottom: 14 }} key={s.id}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -296,23 +218,32 @@ export default function BusinessDetail() {
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: 8 }}>{formatMoney(s.priceCents)}</div>
-                  <button className="btn btn-primary btn-sm" onClick={() => setBookingFor(bookingFor === s.id ? null : s.id)}>
-                    {bookingFor === s.id ? "Cancel" : "Book"}
-                  </button>
+                  {!user ? (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => navigate(`/login?redirect=/business/${id}`)}
+                    >
+                      {t("business.signInToBook")}
+                    </button>
+                  ) : (
+                    <button className="btn btn-primary btn-sm" onClick={() => setBookingFor(bookingFor === s.id ? null : s.id)}>
+                      {bookingFor === s.id ? t("business.cancel") : t("business.book")}
+                    </button>
+                  )}
                 </div>
               </div>
               {bookingFor === s.id && (
                 <div style={{ marginTop: 14, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
                   <div className="field">
-                    <label>Date & time</label>
+                    <label>{t("business.selectDate")}</label>
                     <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
                   </div>
                   <div className="field">
-                    <label>Notes for the provider (optional)</label>
+                    <label>{t("business.addNotes")}</label>
                     <textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
                   </div>
                   <button className="btn btn-ink btn-block" disabled={busy} onClick={() => submitBooking(s)}>
-                    {busy ? "Requesting…" : `Request booking · ${formatMoney(s.priceCents)}`}
+                    {busy ? t("business.requesting") : `${t("business.requestBooking")} · ${formatMoney(s.priceCents)}`}
                   </button>
                 </div>
               )}
@@ -321,7 +252,7 @@ export default function BusinessDetail() {
 
           {business.employees?.length > 0 && (
             <>
-              <h2>Team</h2>
+              <h2>{t("business.team")}</h2>
               <div className="attr-list">
                 {business.employees.map((e) => (
                   <span className="attr-chip" key={e.id}>{e.user.name} — {e.title}</span>
@@ -334,9 +265,9 @@ export default function BusinessDetail() {
         <div>
           {user && user.role === "CUSTOMER" && (
             <div className="card" style={{ marginBottom: 20 }}>
-              <h3>Message this provider</h3>
+              <h3>{t("business.messageProvider")}</h3>
               <div className="msg-thread">
-                {thread.length === 0 && <p className="hint">Say hello or ask a question before booking.</p>}
+                {thread.length === 0 && <p className="hint">{t("business.sayHello")}</p>}
                 {thread.map((m) => (
                   <div key={m.id} className={`msg-bubble ${m.senderId === user.id ? "mine" : "theirs"}`}>
                     {m.content}
@@ -345,13 +276,13 @@ export default function BusinessDetail() {
                 ))}
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                <input placeholder="Type a message…" value={msgText} onChange={(e) => setMsgText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
-                <button className="btn btn-outline" onClick={sendMessage}>Send</button>
+                <input placeholder={t("business.typeMessage")} value={msgText} onChange={(e) => setMsgText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
+                <button className="btn btn-outline" onClick={sendMessage}>{t("business.sendMessage")}</button>
               </div>
             </div>
           )}
 
-          <h2>Reviews</h2>
+          <h2>{t("business.reviews")}</h2>
           
           {reviewSummary && business.reviews?.length > 0 && (
             <div
@@ -423,7 +354,7 @@ export default function BusinessDetail() {
             </div>
           )}
           
-          {business.reviews?.length === 0 && <p>No reviews yet — be the first after your visit.</p>}
+          {business.reviews?.length === 0 && <p>{t("business.noReviews")}</p>}
           {business.reviews?.map((r) => (
             <div className="card" style={{ marginBottom: 12 }} key={r.id}>
               <StarDisplay rating={r.rating} />
@@ -431,7 +362,7 @@ export default function BusinessDetail() {
               <span className="hint">— {r.customer?.name}, {new Date(r.createdAt).toLocaleDateString()}</span>
               {r.ownerReply && (
                 <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid var(--amber)" }}>
-                  <strong style={{ fontSize: "0.85rem" }}>Provider reply:</strong>
+                  <strong style={{ fontSize: "0.85rem" }}>{t("business.providerReply")}:</strong>
                   <p style={{ margin: 0 }}>{r.ownerReply}</p>
                 </div>
               )}
