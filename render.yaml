@@ -11,8 +11,9 @@ services:
     name: localservices-backend
     env: node
     plan: free
-    buildCommand: cd backend && npm install && npx prisma generate
-    startCommand: cd backend && npx prisma migrate deploy && npm start
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: npx prisma migrate deploy && node src/index.js
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -40,8 +41,9 @@ services:
   - type: web
     name: localservices-frontend
     env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
         fromService:
