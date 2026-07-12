@@ -3,16 +3,12 @@ databases:
   - name: localservices-db
     databaseName: localservices
     user: localservices_user
-    plan: free
-    region: oregon
 
 services:
   # Backend API
   - type: web
     name: localservices-backend
     env: node
-    plan: free
-    region: oregon
     rootDir: backend
     buildCommand: npm install && npx prisma generate
     startCommand: npm start
@@ -37,7 +33,6 @@ services:
   - type: web
     name: localservices-frontend
     env: static
-    plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
