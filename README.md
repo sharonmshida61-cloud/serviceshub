@@ -20,7 +20,7 @@ those fields dynamically from the schema. To launch a new category — say,
 
 ```
 local-services-platform/
-├── backend/     Node.js + Express REST API, Prisma ORM, SQLite (swap to Postgres for prod)
+├── backend/     Node.js + Express REST API, Prisma ORM, PostgreSQL
 └── frontend/    React + Vite single-page app
 ```
 
@@ -36,18 +36,39 @@ without touching the booking logic.
 
 ## Running it locally
 
-Requires Node.js 18+.
+Requires Node.js 18+ and PostgreSQL 12+.
 
-### 1. Backend
+### 1. Database Setup
+
+**Option A: Using Docker (Recommended)**
+```bash
+# Start PostgreSQL with Docker
+docker-compose up -d
+
+# Verify it's running
+docker ps
+```
+
+**Option B: Local PostgreSQL Installation**
+- Install PostgreSQL from https://www.postgresql.org/download/
+- Create database: `createdb localservices`
+- Or use pgAdmin/psql to create the database
+
+### 2. Backend
 
 ```bash
 cd backend
-cp .env.example .env       # edit JWT_SECRET if you like
+cp .env.example .env       # edit DATABASE_URL, JWT_SECRET
 npm install
-npx prisma generate
 npx prisma migrate dev --name init
+npx prisma generate
 npm run seed                # creates categories + demo accounts
 npm run dev                  # http://localhost:4000
+```
+
+**Important**: Update your `.env` file with your PostgreSQL connection:
+```
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/localservices"
 ```
 
 Seed accounts (all use password `password123`):
@@ -60,7 +81,7 @@ Seed accounts (all use password `password123`):
 | Employee       | employee1@platform.test       | staff at Fresh Fade Barbershop |
 | Customer       | customer1@platform.test       | has one completed booking + review |
 
-### 2. Frontend
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -90,15 +111,15 @@ Frontend:
 - Build command: `cd frontend && npm install && npm run build`
 - Publish directory: `frontend/dist`
 
-### Important production note
+### Database
 
-The app is still configured for SQLite in [backend/prisma/schema.prisma](backend/prisma/schema.prisma), which is fine for local development but not ideal for a long-lived Render deployment. For a production-grade deployment, switch the Prisma datasource provider to `postgresql` and connect it to a managed PostgreSQL instance.
+The application now uses PostgreSQL for both development and production. The Prisma schema is configured to use PostgreSQL, providing better performance, scalability, and production-ready features compared to SQLite.
 
 ## Moving to production
 
-- **Database**: switch `backend/prisma/schema.prisma`'s datasource
-  `provider` to `"postgresql"` and point `DATABASE_URL` at a real Postgres
-  instance — no model changes needed.
+- **Database**: The app uses PostgreSQL — just point `DATABASE_URL` at a 
+  managed Postgres instance (Render, Railway, Supabase, AWS RDS, etc.).
+  Enable SSL with `?sslmode=require` in production.
 - **Payments**: implement the same `charge()` signature in
   `backend/src/utils/payments.js` against a real gateway.
 - **File storage**: avatars/photos aren't wired to a storage bucket in this
