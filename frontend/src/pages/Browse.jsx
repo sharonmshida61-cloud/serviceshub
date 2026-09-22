@@ -40,9 +40,15 @@ export default function Browse() {
   const [loading, setLoading] = useState(true);
 
   // "committed" filters — what's actually sent to the API
-  const [filters, setFilters] = useState({ category: "", q: "", city: "", sort: "rating" });
+  const initialParams = new URLSearchParams(window.location.search);
+  const [filters, setFilters] = useState({
+    category: initialParams.get("category") || "",
+    q: initialParams.get("q") || "",
+    city: initialParams.get("city") || "",
+    sort: "rating",
+  });
   // "draft" inputs — what the user is typing before they hit Search
-  const [draft, setDraft] = useState({ q: "", city: "" });
+  const [draft, setDraft] = useState({ q: initialParams.get("q") || "", city: initialParams.get("city") || "" });
 
   const [compareIds, setCompareIds] = useState([]);
   const debounceRef = useRef(null);

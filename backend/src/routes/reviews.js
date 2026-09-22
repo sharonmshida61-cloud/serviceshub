@@ -38,6 +38,16 @@ router.post("/", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
   res.status(201).json(review);
 });
 
+// Reviews the signed-in customer wrote
+router.get("/mine", requireAuth, async (req, res) => {
+  const reviews = await prisma.review.findMany({
+    where: { customerId: req.user.id },
+    include: { business: { select: { id: true, name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  res.json(reviews);
+});
+
 router.get("/business/:businessId", async (req, res) => {
   const reviews = await prisma.review.findMany({
     where: { businessId: req.params.businessId },

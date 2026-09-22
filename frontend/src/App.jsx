@@ -1,4 +1,4 @@
-import { Routes, Route, Link, useNavigate } from "react-router-dom";
+import { Routes, Route, Link, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "./context/AuthContext.jsx";
 import { useLanguage } from "./context/LanguageContext.jsx";
@@ -30,6 +30,7 @@ export default function App() {
   const { user, logout, loading } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -39,12 +40,17 @@ export default function App() {
   const currentRole = user?.currentRole || user?.role;
   const availableRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
 
+  const SHELL_DASHBOARDS = ["/dashboard/customer", "/dashboard/business", "/dashboard/admin"];
+  const inShell = SHELL_DASHBOARDS.some((p) => location.pathname.startsWith(p));
+
   return (
     <div>
+      {!inShell && (
       <header className="topbar">
         <div className="container">
           <div className="topbar-main">
             <Link to="/" className="brand" onClick={closeMobileNav}>
+              <span className="brand-mark">N</span>
               Nearby<span className="dot">•</span>
             </Link>
             <button
@@ -61,12 +67,12 @@ export default function App() {
           </div>
           <nav className={`nav-links ${mobileMenuOpen ? "mobile-open" : ""}`}>
             {(!user || currentRole !== "CUSTOMER") && (
-              <Link to={user ? "/browse" : "/"} onClick={closeMobileNav}>{t("nav.discover")}</Link>
+              <NavLink to={user ? "/browse" : "/"} end onClick={closeMobileNav}>{t("nav.discover")}</NavLink>
             )}
             {!loading && user && (
               <>
-                <Link to={DASHBOARD_BY_ROLE[currentRole]} onClick={closeMobileNav}>{t("nav.dashboard")}</Link>
-                <Link to="/settings" onClick={closeMobileNav}>{t("nav.settings")}</Link>
+                <NavLink to={DASHBOARD_BY_ROLE[currentRole]} onClick={closeMobileNav}>{t("nav.dashboard")}</NavLink>
+                <NavLink to="/settings" onClick={closeMobileNav}>{t("nav.settings")}</NavLink>
                 <NotificationBell />
                 <div style={{ position: "relative", display: "inline-block" }}>
                   <button 
@@ -150,6 +156,7 @@ export default function App() {
           </nav>
         </div>
       </header>
+      )}
 
       <Routes>
         <Route path="/" element={<Home />} />

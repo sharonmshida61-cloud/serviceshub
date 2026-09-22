@@ -7,20 +7,75 @@ const router = express.Router();
 router.use(requireAuth, requireRole("ADMIN"));
 
 router.get("/stats", async (req, res) => {
-  const [users, businesses, bookings, revenue] = await Promise.all([
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(startOfDay);
+  endOfDay.setDate(endOfDay.getDate() + 1);
+
+  const [users, businessOwners, businesses, services, bookings, bookingsToday, revenue] = await Promise.all([
     prisma.user.count(),
+    prisma.user.count({ where: { role: "BUSINESS_OWNER" } }),
     prisma.business.count(),
+    prisma.service.count(),
     prisma.booking.count(),
+    prisma.booking.count({ where: { scheduledAt: { gte: startOfDay, lt: endOfDay } } }),
     prisma.payment.aggregate({ where: { status: "PAID" }, _sum: { amountCents: true } }),
   ]);
   const byStatus = await prisma.business.groupBy({ by: ["status"], _count: true });
   res.json({
     users,
+    businessOwners,
     businesses,
+    services,
     bookings,
+    bookingsToday,
     revenueCents: revenue._sum.amountCents || 0,
     businessesByStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
   });
+});
+
+router.get("/businesses", async (req, res) => {
+  const list = await prisma.business.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { category: true, owner: { select: { id: true, name: true, email: true } } },
+  });
+  res.json(list);
+});
+
+router.get("/services", async (req, res) => {
+  const list = await prisma.service.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { business: { select: { id: true, name: true, category: { select: { name: true } } } } },
+  });
+  res.json(list);
+});
+
+router.get("/bookings", async (req, res) => {
+  const list = await prisma.booking.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      customer: { select: { id: true, name: true, email: true } },
+      business: { select: { id: true, name: true } },
+      service: { select: { name: true } },
+      payment: { select: { status: true } },
+    },
+  });
+  res.json(list);
+});
+
+router.get("/reviews", async (req, res) => {
+  const list = await prisma.review.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      customer: { select: { name: true } },
+      business: { select: { name: true } },
+    },
+  });
+  res.json(list);
 });
 
 router.get("/businesses/pending", async (req, res) => {

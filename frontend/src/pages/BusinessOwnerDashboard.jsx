@@ -1,19 +1,30 @@
 import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
 import MediaUpload from "../components/MediaUpload.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
 
-const TABS = ["Bookings", "Customers", "Services", "Employees", "Media", "Messages", "Reviews", "Settings"];
-
-// Tabs that require the business to be APPROVED before they're usable
-const APPROVAL_GATED_TABS = ["Services", "Employees"];
+const NAV = [
+  { key: "dashboard", label: "Dashboard", icon: "dashboard" },
+  { key: "mybusiness", label: "My Business", icon: "store" },
+  { key: "services", label: "My Services", icon: "tag" },
+  { key: "bookings", label: "Bookings", icon: "calendar" },
+  { key: "customers", label: "Customers", icon: "users" },
+  { key: "reviews", label: "Reviews", icon: "star" },
+  { key: "earnings", label: "Earnings", icon: "wallet" },
+  { key: "analytics", label: "Analytics", icon: "chart" },
+  { key: "notifications", label: "Notifications", icon: "bell" },
+  { key: "settings", label: "Settings", icon: "settings" },
+];
 
 export default function BusinessOwnerDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const [tab, setTab] = useState("Bookings");
+  const [section, setSection] = useState("dashboard");
   const [error, setError] = useState("");
   const [showNewBiz, setShowNewBiz] = useState(false);
   const [categories, setCategories] = useState([]);
@@ -28,16 +39,22 @@ export default function BusinessOwnerDashboard() {
   useEffect(load, []);
   useEffect(() => { api.categories().then(setCategories); }, []);
 
+  function handleNav(key) {
+    if (key === "settings") return navigate("/settings");
+    setSection(key);
+  }
+
   const active = businesses.find((b) => b.id === activeId);
+  const title = NAV.find((n) => n.key === section)?.label || "Business";
 
   // --- Pending-approval screen shown right after registration ---
-  // Triggered when the owner has no businesses yet and hasn't opened the
-  // new-listing form. They see a clear explanation instead of a blank page.
   const justRegistered = businesses.length === 0 && !showNewBiz;
 
   return (
-    <div className="container page">
-      <h1>Business dashboard</h1>
+    <DashboardShell accent="owner" navItems={NAV} active={section} onNav={handleNav} title={title}
+      searchPlaceholder="Search bookings, customers, services…"
+      onSearch={() => setSection("bookings")}
+    >
       {error && <div className="alert alert-error">{error}</div>}
 
       {justRegistered && (
@@ -65,15 +82,16 @@ export default function BusinessOwnerDashboard() {
       {showNewBiz && (
         <NewBusinessForm
           categories={categories}
-          onCreated={(b) => { setBusinesses((prev) => [...prev, b]); setActiveId(b.id); setShowNewBiz(false); }}
+          onCreated={(b) => { setBusinesses((prev) => [...prev, b]); setActiveId(b.id); setShowNewBiz(false); setSection("dashboard"); }}
           onCancel={() => setShowNewBiz(false)}
         />
       )}
 
-      {businesses.length > 0 && (
+      {businesses.length > 0 && active && (
         <>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 24 }}>
-            {businesses.map((b) => (
+          {(businesses.length > 1 || section !== "dashboard") && (
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 22 }}>
+            {businesses.length > 1 && businesses.map((b) => (
               <button
                 key={b.id}
                 className={`category-chip ${b.id === activeId ? "active" : ""}`}
@@ -85,60 +103,456 @@ export default function BusinessOwnerDashboard() {
             ))}
             <button className="btn btn-outline btn-sm" onClick={() => setShowNewBiz(true)}>+ New listing</button>
           </div>
+          )}
 
-          {active && (
-            <div className="dash-grid">
-              <div className="dash-nav">
-                {TABS.map((t) => (
-                  <button
-                    key={t}
-                    className={tab === t ? "active" : ""}
-                    onClick={() => setTab(t)}
-                    disabled={active.status !== "APPROVED" && APPROVAL_GATED_TABS.includes(t)}
-                    title={active.status !== "APPROVED" && APPROVAL_GATED_TABS.includes(t) ? "Available after admin approval" : undefined}
-                    style={active.status !== "APPROVED" && APPROVAL_GATED_TABS.includes(t) ? { opacity: 0.4, cursor: "not-allowed" } : {}}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <div>
-                {active.status === "PENDING" && (
-                  <div className="alert" style={{ background: "var(--amber-light, #fef9c3)", borderLeft: "4px solid var(--amber, #f59e0b)", color: "#92400e", marginBottom: 20 }}>
-                    <strong>Awaiting admin approval</strong> — your listing has been submitted and is under review.
-                    You'll be able to add services, manage employees, and accept bookings once it's approved.
-                    No action needed on your end.
-                  </div>
-                )}
-                {active.status === "REJECTED" && (
-                  <div className="alert alert-error" style={{ marginBottom: 20 }}>
-                    <strong>Listing rejected</strong> — this listing was not approved. Please contact support or edit your listing details and resubmit.
-                  </div>
-                )}
-                {active.status === "SUSPENDED" && (
-                  <div className="alert alert-error" style={{ marginBottom: 20 }}>
-                    <strong>Listing suspended</strong> — this listing has been suspended by an admin. Please contact support.
-                  </div>
-                )}
-                {tab === "Bookings" && <BookingsPanel business={active} />}
-                {tab === "Customers" && <CustomersPanel business={active} onStatusChange={load} />}
-                {tab === "Services" && (active.status === "APPROVED"
-                  ? <ServicesPanel business={active} onChange={load} />
-                  : <ApprovalRequired />
-                )}
-                {tab === "Employees" && (active.status === "APPROVED"
-                  ? <EmployeesPanel business={active} onChange={load} />
-                  : <ApprovalRequired />
-                )}
-                {tab === "Media" && <MediaPanel business={active} />}
-                {tab === "Messages" && <MessagesPanel business={active} />}
-                {tab === "Reviews" && <ReviewsPanel business={active} />}
-                {tab === "Settings" && <SettingsPanel business={active} onChange={load} />}
-              </div>
+          {section !== "dashboard" && active.status === "PENDING" && (
+            <div className="alert" style={{ background: "var(--amber-light, #fef9c3)", borderLeft: "4px solid var(--amber, #f59e0b)", color: "#92400e", marginBottom: 20 }}>
+              <strong>Awaiting admin approval</strong> — your listing has been submitted and is under review.
+              You'll be able to add services, manage employees, and accept bookings once it's approved.
+              No action needed on your end.
             </div>
           )}
+          {section !== "dashboard" && active.status === "REJECTED" && (
+            <div className="alert alert-error" style={{ marginBottom: 20 }}>
+              <strong>Listing rejected</strong> — this listing was not approved. Please contact support or edit your listing details and resubmit.
+            </div>
+          )}
+          {section !== "dashboard" && active.status === "SUSPENDED" && (
+            <div className="alert alert-error" style={{ marginBottom: 20 }}>
+              <strong>Listing suspended</strong> — this listing has been suspended by an admin. Please contact support.
+            </div>
+          )}
+
+          {section === "dashboard" && <Overview business={active} onNavigate={setSection} />}
+          {section === "bookings" && <BookingsPanel business={active} />}
+          {section === "customers" && <CustomersPanel business={active} onStatusChange={load} />}
+          {section === "services" && (active.status === "APPROVED"
+            ? <ServicesPanel business={active} onChange={load} />
+            : <ApprovalRequired />
+          )}
+          {section === "mybusiness" && <MyBusinessSection business={active} onChange={load} />}
+          {section === "reviews" && <ReviewsPanel business={active} />}
+          {section === "earnings" && <EarningsPanel business={active} />}
+          {section === "analytics" && <AnalyticsPanel business={active} />}
+          {section === "notifications" && <OwnerNotifications />}
         </>
       )}
+    </DashboardShell>
+  );
+}
+
+function Stat({ icon, color, label, value, trend, dir = "up" }) {
+  return (
+    <div className={`stat-card sc-${color}`}>
+      <span className={`stat-icon solid-${color}`}><Icon name={icon} size={20} /></span>
+      <span className="stat-text">
+        <span className="stat-label">{label}</span>
+        <span className="stat-value">{value}</span>
+        {trend && <span className={`stat-trend trend-${dir}`}>{dir === "up" ? "↑" : "↓"} {trend}</span>}
+      </span>
+    </div>
+  );
+}
+
+function pctTrend(today, yesterday) {
+  if (!yesterday) return today ? { text: "new today", dir: "up" } : null;
+  const pct = Math.round(((today - yesterday) / yesterday) * 100);
+  if (pct === 0) return { text: "same as yesterday", dir: "up" };
+  return { text: `${Math.abs(pct)}% from yesterday`, dir: pct > 0 ? "up" : "down" };
+}
+
+function initials(name) {
+  return (name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function timeAgo(d) {
+  const days = Math.floor((Date.now() - new Date(d)) / 864e5);
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day ago";
+  if (days < 30) return `${days} days ago`;
+  return new Date(d).toLocaleDateString();
+}
+
+function AreaChart({ values }) {
+  const max = Math.max(...values, 1);
+  const W = 560, H = 160, PAD = 12;
+  const step = (W - PAD * 2) / (values.length - 1);
+  const pts = values.map((v, i) => [PAD + i * step, H - PAD - (v / max) * (H - PAD * 2 - 8)]);
+  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const area = `${line} L ${pts[pts.length - 1][0].toFixed(1)} ${H - PAD} L ${pts[0][0].toFixed(1)} ${H - PAD} Z`;
+  return (
+    <svg className="area-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="ownerAreaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#0f9d6c" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#0f9d6c" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#ownerAreaFill)" />
+      <path d={line} fill="none" stroke="#0f9d6c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3.5" fill="#fff" stroke="#0f9d6c" strokeWidth="2" />)}
+    </svg>
+  );
+}
+
+function Overview({ business, onNavigate }) {
+  const { user } = useAuth();
+  const [data, setData] = useState(null);
+  const [photo, setPhoto] = useState(null);
+
+  useEffect(() => {
+    setData(null);
+    Promise.all([
+      api.businessBookings(business.id).catch(() => []),
+      api.businessCustomers(business.id).catch(() => []),
+      api.servicesForBusiness(business.id).catch(() => []),
+      api.businessReviews(business.id).catch(() => []),
+    ]).then(([bookings, customers, services, reviews]) => setData({ bookings, customers, services, reviews }));
+    api.enhancedPortfolio(business.id)
+      .then((items) => {
+        const p = items.find((i) => i.type === "PHOTO" && i.mediaUrl) || items.find((i) => i.mediaUrl);
+        if (p) { setPhoto(p.thumbnailUrl || p.mediaUrl); return; }
+        return api.portfolioItems(business.id).then((ps) => {
+          if (ps[0]?.imageUrl) setPhoto(ps[0].imageUrl);
+        });
+      })
+      .catch(() => {});
+  }, [business.id]);
+
+  if (!data) return <p>Loading…</p>;
+  const { bookings, customers, services, reviews } = data;
+
+  const now = new Date();
+  const sameDay = (d, ref) => new Date(d).toDateString() === ref.toDateString();
+  const yesterday = new Date(now.getTime() - 864e5);
+  const todays = bookings.filter((b) => sameDay(b.scheduledAt, now)).length;
+  const yests = bookings.filter((b) => sameDay(b.scheduledAt, yesterday)).length;
+  const bookTrend = pctTrend(todays, yests);
+
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const newCustomers = customers.filter((c) => new Date(c.customer?.createdAt) >= monthStart).length;
+  const newServices = services.filter((s) => new Date(s.createdAt) >= monthStart).length;
+
+  const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
+  const d30 = new Date(now.getTime() - 30 * 864e5);
+  const d60 = new Date(now.getTime() - 60 * 864e5);
+  const avgOf = (xs) => (xs.length ? xs.reduce((s, r) => s + r.rating, 0) / xs.length : null);
+  const a1 = avgOf(reviews.filter((r) => new Date(r.createdAt) >= d30));
+  const a0 = avgOf(reviews.filter((r) => { const t = new Date(r.createdAt); return t < d30 && t >= d60; }));
+  const ratingDelta = a1 != null && a0 != null ? a1 - a0 : null;
+
+  const upcoming = bookings
+    .filter((b) => ["PENDING", "CONFIRMED"].includes(b.status) && new Date(b.scheduledAt) >= now)
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))
+    .slice(0, 5);
+
+  const days = [...Array(7)].map((_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (6 - i));
+    const paid = bookings
+      .filter((b) => b.payment?.status === "PAID" && sameDay(b.scheduledAt, d))
+      .reduce((s, b) => s + (b.payment?.amountCents || b.priceCents || 0), 0);
+    return { label: d.toLocaleDateString(undefined, { weekday: "short" }), paid };
+  });
+  const weekTotal = days.reduce((s, d) => s + d.paid, 0);
+
+  const displayRating = business.avgRating ?? Number(avgRating.toFixed(1));
+  const reviewCount = business.reviewCount ?? reviews.length;
+
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ marginBottom: 2 }}>Welcome back, {(business.owner?.name || user?.name || "there").split(" ")[0]} 👋</h2>
+        <p style={{ margin: 0 }}>Manage your business and grow your services.</p>
+      </div>
+
+      <div className="stat-grid">
+        <Stat icon="calendar" color="blue" label="Today's Bookings" value={todays} trend={bookTrend?.text} dir={bookTrend?.dir} />
+        <Stat icon="users" color="green" label="Total Customers" value={customers.length} trend={newCustomers ? `${newCustomers} new this month` : null} />
+        <Stat icon="tag" color="purple" label="My Services" value={services.length} trend={newServices ? `${newServices} new this month` : null} />
+        <Stat
+          icon="star" color="amber" label="Average Rating" value={displayRating}
+          trend={ratingDelta != null ? `${Math.abs(ratingDelta).toFixed(1)} from last month` : `based on ${reviewCount} reviews`}
+          dir={ratingDelta != null && ratingDelta < 0 ? "down" : "up"}
+        />
+      </div>
+
+      <div className="dash-cols">
+        <div>
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Upcoming Bookings</h3>
+              <button className="linklike" onClick={() => onNavigate("bookings")}>View All</button>
+            </div>
+            <div className="panel-body flush">
+              {upcoming.length === 0 && <p style={{ padding: "16px 20px", margin: 0 }}>No upcoming bookings.</p>}
+              {upcoming.length > 0 && (
+                <table className="data-table" style={{ margin: 0 }}>
+                  <thead><tr><th>Customer</th><th>Service</th><th>Date & Time</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {upcoming.map((b) => (
+                      <tr key={b.id}>
+                        <td>{b.customer?.name}</td>
+                        <td>{b.service?.name}</td>
+                        <td>{new Date(b.scheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</td>
+                        <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Earnings Overview</h3>
+              <span className="hint">{formatMoney(weekTotal)} · last 7 days</span>
+            </div>
+            <div className="panel-body">
+              <AreaChart values={days.map((d) => d.paid)} />
+              <div className="chart-x">{days.map((d, i) => <span key={i}>{d.label}</span>)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div className="panel biz-card-panel">
+            <div
+              className="biz-photo"
+              style={photo ? { backgroundImage: `url(${photo})` } : { background: "linear-gradient(135deg, #0b4436, #0f9d6c)" }}
+            />
+            <div className="panel-body">
+              <div className="biz-card-head">
+                <div>
+                  <div className="biz-name">{business.name}</div>
+                  <div className="hint">{business.category?.name}{business.city ? ` · ${business.city}` : ""}</div>
+                </div>
+                <span className={`pill pill-${business.status.toLowerCase()}`}>{business.status === "APPROVED" ? "Active" : business.status}</span>
+              </div>
+              <div className="biz-rating">
+                <StarDisplay rating={Number(displayRating)} />
+                <span className="hint">{displayRating} ({reviewCount} reviews)</span>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button className="btn btn-outline btn-sm" onClick={() => onNavigate("mybusiness")}>Edit Business</button>
+                <Link to={`/business/${business.id}`} className="btn btn-outline btn-sm">View Public Page</Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head"><h3>Quick Actions</h3></div>
+            <div className="panel-body">
+              <div className="qa-grid">
+                <button className="qa-tile" onClick={() => onNavigate("services")}>
+                  <span className="activity-icon tint-blue"><Icon name="tag" size={18} /></span>
+                  Add Service
+                </button>
+                <button className="qa-tile" onClick={() => onNavigate("bookings")}>
+                  <span className="activity-icon tint-green"><Icon name="calendar" size={18} /></span>
+                  Manage Bookings
+                </button>
+                <button className="qa-tile" onClick={() => onNavigate("customers")}>
+                  <span className="activity-icon tint-purple"><Icon name="users" size={18} /></span>
+                  View Customers
+                </button>
+                <button className="qa-tile" onClick={() => onNavigate("reviews")}>
+                  <span className="activity-icon tint-amber"><Icon name="star" size={18} /></span>
+                  View Reviews
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-head">
+              <h3>Recent Reviews</h3>
+              <button className="linklike" onClick={() => onNavigate("reviews")}>View All</button>
+            </div>
+            <div className="panel-body">
+              {reviews.length === 0 && <p style={{ margin: 0 }}>No reviews yet.</p>}
+              {reviews.slice(0, 3).map((r) => (
+                <div className="review-row" key={r.id}>
+                  <span className="rr-avatar">{initials(r.customer?.name)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="rr-head">
+                      <strong>{r.customer?.name || "Customer"}</strong>
+                      <span className="hint">{timeAgo(r.createdAt)}</span>
+                    </div>
+                    <StarDisplay rating={r.rating} />
+                    {r.comment && <div className="activity-sub" style={{ marginTop: 2 }}>{r.comment}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MyBusinessSection({ business, onChange }) {
+  const [tab, setTab] = useState("details");
+  const TABS = [["details", "Details"], ["media", "Photos & Videos"], ["team", "Team"], ["messages", "Messages"]];
+  return (
+    <div>
+      <div className="tabs">
+        {TABS.map(([k, l]) => (
+          <button key={k} type="button" className={tab === k ? "tab active" : "tab"} onClick={() => setTab(k)}>{l}</button>
+        ))}
+      </div>
+      {tab === "details" && <SettingsPanel business={business} onChange={onChange} />}
+      {tab === "media" && <MediaPanel business={business} />}
+      {tab === "team" && (business.status === "APPROVED"
+        ? <EmployeesPanel business={business} onChange={onChange} />
+        : <ApprovalRequired />
+      )}
+      {tab === "messages" && <MessagesPanel business={business} />}
+    </div>
+  );
+}
+
+function EarningsPanel({ business }) {
+  const [bookings, setBookings] = useState(null);
+  useEffect(() => {
+    api.businessBookings(business.id).then(setBookings).catch(() => setBookings([]));
+  }, [business.id]);
+  if (!bookings) return <p>Loading…</p>;
+
+  const paid = bookings.filter((b) => b.payment?.status === "PAID");
+  const amountOf = (b) => b.payment?.amountCents || b.priceCents || 0;
+  const total = paid.reduce((s, b) => s + amountOf(b), 0);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const thisMonth = paid.filter((b) => new Date(b.scheduledAt) >= monthStart).reduce((s, b) => s + amountOf(b), 0);
+
+  return (
+    <div>
+      <h2>Earnings</h2>
+      <div className="stat-grid">
+        <Stat icon="wallet" color="green" label="Total Earnings" value={formatMoney(total)} />
+        <Stat icon="chart" color="blue" label="This Month" value={formatMoney(thisMonth)} />
+        <Stat icon="calendar" color="purple" label="Paid Bookings" value={paid.length} />
+      </div>
+      <div className="panel">
+        <div className="panel-head"><h3>Payments</h3></div>
+        <div className="panel-body flush">
+          {paid.length === 0 && <p style={{ padding: "16px 20px", margin: 0 }}>No payments yet.</p>}
+          {paid.length > 0 && (
+            <table className="data-table" style={{ margin: 0 }}>
+              <thead><tr><th>Customer</th><th>Service</th><th>Amount</th><th>Date</th><th>Method</th></tr></thead>
+              <tbody>
+                {paid.slice(0, 20).map((b) => (
+                  <tr key={b.id}>
+                    <td>{b.customer?.name}</td>
+                    <td>{b.service?.name}</td>
+                    <td>{formatMoney(amountOf(b))}</td>
+                    <td>{new Date(b.payment?.paidAt || b.scheduledAt).toLocaleDateString()}</td>
+                    <td>{b.payment?.method || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsPanel({ business }) {
+  const [bookings, setBookings] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  useEffect(() => {
+    api.businessBookings(business.id).then(setBookings).catch(() => setBookings([]));
+    api.businessCustomers(business.id).then(setCustomers).catch(() => {});
+  }, [business.id]);
+  if (!bookings) return <p>Loading…</p>;
+
+  const STATUSES = ["CONFIRMED", "PENDING", "COMPLETED", "DECLINED", "CANCELLED"];
+  const byStatus = STATUSES.map((s) => ({ s, n: bookings.filter((b) => b.status === s).length }));
+  const maxS = Math.max(...byStatus.map((x) => x.n), 1);
+  const byService = {};
+  bookings.forEach((b) => {
+    const k = b.service?.name || "Other";
+    byService[k] = (byService[k] || 0) + 1;
+  });
+  const top = Object.entries(byService).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxT = top.length ? top[0][1] : 1;
+  const completed = bookings.filter((b) => b.status === "COMPLETED").length;
+  const completion = bookings.length ? `${Math.round((completed / bookings.length) * 100)}%` : "—";
+  const repeat = customers.filter((c) => (c.bookings || []).length > 1).length;
+
+  return (
+    <div>
+      <h2>Analytics</h2>
+      <div className="stat-grid">
+        <Stat icon="calendar" color="blue" label="Total Bookings" value={bookings.length} />
+        <Stat icon="clipboard" color="teal" label="Completion Rate" value={completion} />
+        <Stat icon="users" color="green" label="Total Customers" value={customers.length} />
+        <Stat icon="heart" color="purple" label="Repeat Customers" value={repeat} />
+      </div>
+      <div className="grid grid-2">
+        <div className="panel">
+          <div className="panel-head"><h3>Bookings by Status</h3></div>
+          <div className="panel-body">
+            {byStatus.map(({ s, n }) => (
+              <div className="hbar-row" key={s}>
+                <span className="hbar-label">{s.charAt(0) + s.slice(1).toLowerCase()}</span>
+                <span className="hbar-track"><span className="hbar" style={{ width: `${(n / maxS) * 100}%` }} /></span>
+                <span className="hbar-n">{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-head"><h3>Top Services</h3></div>
+          <div className="panel-body">
+            {top.length === 0 && <p style={{ margin: 0 }}>No bookings yet.</p>}
+            {top.map(([name, n]) => (
+              <div className="hbar-row" key={name}>
+                <span className="hbar-label">{name}</span>
+                <span className="hbar-track"><span className="hbar" style={{ width: `${(n / maxT) * 100}%` }} /></span>
+                <span className="hbar-n">{n}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerNotifications() {
+  const [items, setItems] = useState(null);
+  useEffect(() => { api.notifications().then(setItems).catch(() => setItems([])); }, []);
+  if (!items) return <p>Loading…</p>;
+
+  async function markAll() {
+    await api.markAllNotificationsRead();
+    setItems((xs) => xs.map((x) => ({ ...x, readAt: x.readAt || new Date().toISOString() })));
+  }
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <h3>Notifications</h3>
+        {items.some((n) => !n.readAt) && <button className="linklike" onClick={markAll}>Mark all read</button>}
+      </div>
+      <div className="panel-body">
+        {items.length === 0 && <p style={{ margin: 0 }}>No notifications.</p>}
+        {items.map((n) => (
+          <div className="activity-item" key={n.id} style={{ opacity: n.readAt ? 0.6 : 1 }}>
+            <span className="activity-icon tint-green"><Icon name="bell" size={15} /></span>
+            <div>
+              {n.subject && <div className="activity-title">{n.subject}</div>}
+              <div className="activity-sub">{n.message}</div>
+              <div className="hint">{new Date(n.createdAt).toLocaleString()}</div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

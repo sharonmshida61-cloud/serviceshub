@@ -19,6 +19,7 @@ export const CATEGORY_IMAGES = {
   hand: "https://api.iconify.design/mdi:hand-open.svg?color=%23fb8500&height=48",
   laptop: "https://api.iconify.design/mdi:laptop.svg?color=%23fb8500&height=48",
   hammer: "https://api.iconify.design/mdi:hammer.svg?color=%23fb8500&height=48",
+  leaf: "https://api.iconify.design/mdi:leaf.svg?color=%23fb8500&height=48",
 };
 
 export const getCategoryImage = (icon) => {

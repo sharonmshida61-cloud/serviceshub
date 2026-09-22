@@ -45,6 +45,16 @@ export default function BusinessDetail() {
     }
   }, [user, business?.id]);
 
+  useEffect(() => {
+    if (!business) return;
+    try {
+      const key = "recentlyViewed";
+      const list = JSON.parse(localStorage.getItem(key) || "[]").filter((x) => x.id !== business.id);
+      list.unshift({ id: business.id, name: business.name, category: business.category?.name, rating: business.avgRating, icon: business.category?.icon });
+      localStorage.setItem(key, JSON.stringify(list.slice(0, 8)));
+    } catch { /* storage unavailable */ }
+  }, [business?.id]);
+
   async function toggleFavorite() {
     if (!user || user.role !== "CUSTOMER") return;
     try {

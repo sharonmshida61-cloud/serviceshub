@@ -29,6 +29,13 @@ const uploadRoutes = require("./routes/upload");
 
 const app = express();
 
+// Neon can briefly refuse connections (cold start / pooler blips). Prisma
+// errors thrown inside async routes become unhandled rejections, which would
+// kill the whole server — log them and stay up instead.
+process.on("unhandledRejection", (err) => {
+  console.error("[unhandledRejection]", err?.code || err?.message || err);
+});
+
 app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
 app.use(express.json());
 app.use(morgan("dev"));
@@ -71,4 +78,22 @@ app.use((err, req, res, next) => {
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 
 const PORT = Number(process.env.PORT) || 4000;
-app.listen(PORT, "0.0.0.0", () => console.log(`API listening on http://0.0.0.0:${PORT}`));
+
+if (require.main === module) {
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`API listening on http://0.0.0.0:${PORT}`);
+  });
+
+  // If a DB call stalls, fail the request instead of hanging forever.
+  server.setTimeout(25000, (socket) => {
+    if (!socket.destroyed && !socket.writableEnded) {
+      socket.write(
+        "HTTP/1.1 504 Gateway Timeout\r\nConnection: close\r\n\r\n"
+      );
+    }
+
+    socket.destroy();
+  });
+}
+
+module.exports = app;

@@ -4,21 +4,23 @@ const prisma = new PrismaClient();
 
 const CATEGORIES = [
   { name: "Barbers",            slug: "barbers",            icon: "scissors",  schema: [{ key: "chairCount", label: "Number of chairs", type: "number" }, { key: "walkInsWelcome", label: "Walk-ins welcome", type: "boolean" }] },
-  { name: "Hair Salons",        slug: "hair-salons",        icon: "sparkles",  schema: [{ key: "specialties", label: "Specialties", type: "text" }] },
+  { name: "Beauty",             slug: "hair-salons",        icon: "scissors",  schema: [{ key: "specialties", label: "Specialties", type: "text" }] },
   { name: "Car Washes",         slug: "car-washes",         icon: "car",       schema: [{ key: "vehicleSizes", label: "Vehicle sizes served", type: "text" }, { key: "hasVacuum", label: "Vacuum included", type: "boolean" }] },
   { name: "Laundry",            slug: "laundry",            icon: "shirt",     schema: [{ key: "pickupDelivery", label: "Pickup & delivery available", type: "boolean" }, { key: "turnaroundHours", label: "Typical turnaround (hours)", type: "number" }] },
-  { name: "Cleaning Services",  slug: "cleaning-services",  icon: "spray-can", schema: [{ key: "propertyTypes", label: "Property types serviced", type: "text" }, { key: "suppliesIncluded", label: "Supplies included", type: "boolean" }] },
-  { name: "Plumbers",           slug: "plumbers",           icon: "wrench",    schema: [{ key: "licensed", label: "Licensed", type: "boolean" }, { key: "emergencyService", label: "24/7 emergency service", type: "boolean" }] },
-  { name: "Electricians",       slug: "electricians",       icon: "zap",       schema: [{ key: "licensed", label: "Licensed", type: "boolean" }, { key: "commercialWork", label: "Handles commercial jobs", type: "boolean" }] },
-  { name: "Mechanics",          slug: "mechanics",          icon: "cog",       schema: [{ key: "vehicleTypes", label: "Vehicle types serviced", type: "text" }, { key: "mobileService", label: "Mobile / on-site service", type: "boolean" }] },
+  { name: "Home Services",      slug: "cleaning-services",  icon: "home",      schema: [{ key: "propertyTypes", label: "Property types serviced", type: "text" }, { key: "suppliesIncluded", label: "Supplies included", type: "boolean" }] },
+  { name: "Plumbing",           slug: "plumbers",           icon: "wrench",    schema: [{ key: "licensed", label: "Licensed", type: "boolean" }, { key: "emergencyService", label: "24/7 emergency service", type: "boolean" }] },
+  { name: "Electrical",         slug: "electricians",       icon: "zap",       schema: [{ key: "licensed", label: "Licensed", type: "boolean" }, { key: "commercialWork", label: "Handles commercial jobs", type: "boolean" }] },
+  { name: "Transport",          slug: "mechanics",          icon: "car",       schema: [{ key: "vehicleTypes", label: "Vehicle types serviced", type: "text" }, { key: "mobileService", label: "Mobile / on-site service", type: "boolean" }] },
   { name: "Photographers",      slug: "photographers",      icon: "camera",    schema: [{ key: "styles", label: "Photography styles", type: "text" }, { key: "travelsForShoots", label: "Willing to travel", type: "boolean" }] },
-  { name: "Tutors",             slug: "tutors",             icon: "book-open", schema: [{ key: "subjects", label: "Subjects taught", type: "text" }, { key: "gradeLevel", label: "Grade level", type: "text" }] },
+  { name: "Education",          slug: "tutors",             icon: "graduation-cap", schema: [{ key: "subjects", label: "Subjects taught", type: "text" }, { key: "gradeLevel", label: "Grade level", type: "text" }] },
   { name: "Tailors",            slug: "tailors",            icon: "scissors",  schema: [{ key: "garmentTypes", label: "Garment types", type: "text" }, { key: "rushService", label: "Rush service available", type: "boolean" }] },
   { name: "Fitness Trainers",   slug: "fitness-trainers",   icon: "dumbbell",  schema: [{ key: "specialties", label: "Training specialties", type: "text" }, { key: "inHomeSessions", label: "In-home sessions", type: "boolean" }] },
   { name: "Event Planners",     slug: "event-planners",     icon: "calendar",  schema: [{ key: "eventTypes", label: "Event types", type: "text" }, { key: "maxGuestCapacity", label: "Max guests handled", type: "number" }] },
-  { name: "Massage Therapists", slug: "massage-therapists", icon: "hand",      schema: [{ key: "modalities", label: "Modalities offered", type: "text" }, { key: "licensed", label: "Licensed", type: "boolean" }] },
-  { name: "Freelancers",        slug: "freelancers",        icon: "laptop",    schema: [{ key: "skillTags", label: "Skills", type: "text" }, { key: "remoteOnly", label: "Remote only", type: "boolean" }] },
-  { name: "Home Repair Services", slug: "home-repair",      icon: "hammer",    schema: [{ key: "specialties", label: "Repair specialties", type: "text" }, { key: "licensed", label: "Licensed & insured", type: "boolean" }] },
+  { name: "Health",             slug: "massage-therapists", icon: "cross",     schema: [{ key: "modalities", label: "Modalities offered", type: "text" }, { key: "licensed", label: "Licensed", type: "boolean" }] },
+  { name: "Technology",         slug: "freelancers",        icon: "laptop",    schema: [{ key: "skillTags", label: "Skills", type: "text" }, { key: "remoteOnly", label: "Remote only", type: "boolean" }] },
+  { name: "Repairs",            slug: "home-repair",        icon: "wrench",    schema: [{ key: "specialties", label: "Repair specialties", type: "text" }, { key: "licensed", label: "Licensed & insured", type: "boolean" }] },
+  { name: "Landscaping",        slug: "landscaping",        icon: "leaf",      schema: [{ key: "services", label: "Services offered", type: "text" }, { key: "maintenancePlans", label: "Maintenance plans", type: "boolean" }] },
+  { name: "Food & Drinks",      slug: "food-drinks",        icon: "utensils",  schema: [{ key: "cuisine", label: "Cuisine / specialty", type: "text" }, { key: "delivery", label: "Delivery available", type: "boolean" }] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -731,7 +733,7 @@ async function main() {
   for (const c of CATEGORIES) {
     const rec = await prisma.category.upsert({
       where: { slug: c.slug },
-      update: { icon: c.icon, attributeSchema: JSON.stringify(c.schema) },
+      update: { name: c.name, icon: c.icon, attributeSchema: JSON.stringify(c.schema) },
       create: { name: c.name, slug: c.slug, icon: c.icon, attributeSchema: JSON.stringify(c.schema) },
     });
     catRecords[c.slug] = rec;
