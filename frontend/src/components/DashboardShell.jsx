@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import NotificationBell from "./NotificationBell.jsx";
@@ -54,7 +55,26 @@ export default function DashboardShell({
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [moreOpen, setMoreOpen] = useState(false);
   const roleLabel = (user?.currentRole || user?.role || "").replace("_", " ").toLowerCase();
+
+  const primary = navItems.slice(0, 4);
+  const overflow = navItems.slice(4);
+
+  // Tables are laid out at their natural width; on phones that pushes the page
+  // sideways, so give every one a horizontally scrollable wrapper.
+  useEffect(() => {
+    document.querySelectorAll("table.data-table").forEach((t) => {
+      const p = t.parentElement;
+      if (!p || /table-scroll/.test(p.className) || /auto|scroll|hidden/.test(getComputedStyle(p).overflowX)) return;
+      const wrap = document.createElement("div");
+      wrap.className = "table-scroll";
+      p.insertBefore(wrap, t);
+      wrap.appendChild(t);
+    });
+  }, [children, active]);
+
+  const go = (key) => { setMoreOpen(false); onNav(key); };
 
   return (
     <div className={`dash-shell dash-${accent}`}>
@@ -86,6 +106,49 @@ export default function DashboardShell({
           </div>
         </div>
       </aside>
+
+      <nav className="dash-mnav" aria-label="Dashboard sections">
+        {primary.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            className={active === item.key ? "active" : ""}
+            onClick={() => onNav(item.key)}
+          >
+            <Icon name={item.icon} size={20} />
+            <span>{item.label}</span>
+          </button>
+        ))}
+        {overflow.length > 0 && (
+          <button type="button" className={overflow.some((o) => o.key === active) ? "active" : ""} onClick={() => setMoreOpen(true)}>
+            <Icon name="grid" size={20} />
+            <span>More</span>
+          </button>
+        )}
+      </nav>
+
+      {moreOpen && (
+        <div className="dash-drawer" role="dialog" aria-modal="true" aria-label="More sections">
+          <div className="dash-drawer-backdrop" onClick={() => setMoreOpen(false)} />
+          <div className="dash-drawer-panel">
+            <div className="dash-drawer-head">
+              <span>More</span>
+              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close">✕</button>
+            </div>
+            {overflow.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={active === item.key ? "active" : ""}
+                onClick={() => go(item.key)}
+              >
+                <Icon name={item.icon} size={18} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="dash-main">
         <header className="dash-header">

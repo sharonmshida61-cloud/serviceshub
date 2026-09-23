@@ -19,10 +19,10 @@ const NAV = [
 
 const POPULAR_CATEGORIES = [
   { slug: "mechanics", name: "Transport", mdi: "car", color: "#2563eb", bg: "#e4edff" },
-  { slug: "massage-therapists", name: "Health", mdi: "medical-cross", color: "#8b5cf6", bg: "#f0e9ff" },
+  { slug: "massage-therapists", name: "Health", mdi: "medicine", color: "#8b5cf6", bg: "#f0e9ff" },
   { slug: "hair-salons", name: "Beauty", mdi: "scissors", color: "#ec4899", bg: "#ffe9f4" },
   { slug: "home-repair", name: "Repairs", mdi: "wrench", color: "#14b8a6", bg: "#ddf7f2" },
-  { slug: "food-drinks", name: "Food & Drinks", mdi: "fork-knife", color: "#f59e0b", bg: "#fdf1d9" },
+  { slug: "food-drinks", name: "Food & Drinks", mdi: "silverware-fork-knife", color: "#f59e0b", bg: "#fdf1d9" },
   { slug: "cleaning-services", name: "Home Services", mdi: "home-variant", color: "#3b82f6", bg: "#e4edff" },
   { slug: "freelancers", name: "Technology", mdi: "laptop", color: "#6366f1", bg: "#e7e7ff" },
   { slug: "tutors", name: "Education", mdi: "graduation-cap", color: "#10b981", bg: "#ddf7ea" },
