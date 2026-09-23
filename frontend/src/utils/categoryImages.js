@@ -7,7 +7,7 @@ export const CATEGORY_IMAGES = {
   scissors: "https://api.iconify.design/mdi:scissors.svg?color=%23fb8500&height=48",
   sparkles: "https://api.iconify.design/mdi:sparkles.svg?color=%23fb8500&height=48",
   car: "https://api.iconify.design/mdi:car.svg?color=%23fb8500&height=48",
-  shirt: "https://api.iconify.design/mdi:shirt.svg?color=%23fb8500&height=48",
+  shirt: "https://api.iconify.design/mdi:tshirt-crew.svg?color=%23fb8500&height=48",
   "spray-can": "https://api.iconify.design/mdi:spray-bottle.svg?color=%23fb8500&height=48",
   wrench: "https://api.iconify.design/mdi:wrench.svg?color=%23fb8500&height=48",
   zap: "https://api.iconify.design/mdi:lightning-bolt.svg?color=%23fb8500&height=48",
