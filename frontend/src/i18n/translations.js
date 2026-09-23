@@ -21,14 +21,26 @@ export const translations = {
     // ═══════════════════════════════════════════════════════════════════════
     // HOME PAGE
     // ═══════════════════════════════════════════════════════════════════════
-    "home.hero.title": "Find someone you can trust,\nright around the corner.",
-    "home.hero.subtitle": "Barbers, plumbers, tutors, photographers and dozens more — discover local providers, compare them side by side, and book in one place.",
-    "home.hero.badge": "Trusted by locals",
-    "home.hero.searchName": "Search by name…",
-    "home.hero.searchCity": "City",
+    "home.hero.tagline": "Local Services. All in One Place.",
+    "home.hero.title": "Find Local Services\nEasily & Quickly",
+    "home.hero.subtitle": "From transport and restaurants to barbershops, laundry, car wash and more — ServiceHub connects you with trusted local service providers near you.",
+    "home.hero.searchPlaceholder": "What service do you need?",
     "home.cta.getStarted": "Get Started",
     "home.cta.browse": "Browse Providers",
     "home.howItWorks": "How it works",
+    "home.howItWorks.title": "Search, compare, book, review",
+    "home.trust.providers": "Trusted Providers",
+    "home.trust.nearYou": "Near You",
+    "home.trust.fast": "Fast & Convenient",
+    "home.tile.transport": "Transport",
+    "home.tile.barbers": "Barbershops",
+    "home.tile.restaurants": "Restaurants",
+    "home.tile.laundry": "Laundry",
+    "home.tile.carWash": "Car Wash",
+    "home.tile.repairs": "Repairs & Maintenance",
+    "home.tile.groceries": "Groceries",
+    "home.tile.beauty": "Beauty & Wellness",
+    "home.tile.other": "Other Services",
     "home.categories.title": "Popular Categories",
     "home.categories.viewAll": "View all categories",
     "home.trending.eyebrow": "Trending now",
@@ -55,6 +67,17 @@ export const translations = {
     "home.compare.startingPrice": "Starting price",
     "home.compare.city": "City",
     "home.compare.book": "Book",
+
+    // ── Landing page: closing band, footer ──
+    "home.ctaBand.title": "Own a shop, a chair or a toolbelt?",
+    "home.ctaBand.subtitle": "Get found by the neighborhood already looking for what you do. Listing takes a couple of minutes.",
+    "home.ctaBand.join": "List your business",
+    "home.ctaBand.dashboard": "Open your dashboard",
+    "home.footer.tagline": "The directory for trusted local providers — compare, book and pay in one place.",
+    "home.footer.explore": "Explore",
+    "home.footer.account": "Account",
+    "home.footer.forBusiness": "For business",
+    "home.footer.rights": "All rights reserved.",
 
     // ═══════════════════════════════════════════════════════════════════════
     // BROWSE PAGE
@@ -675,14 +698,26 @@ export const translations = {
     // ═══════════════════════════════════════════════════════════════════════
     // HOME PAGE - Swahili
     // ═══════════════════════════════════════════════════════════════════════
-    "home.hero.title": "Pata mtu unayeweza kumwamini,\nkaribu na wewe.",
-    "home.hero.subtitle": "Wakozi nywele, mabomba, walimu, wapiga picha na wengi zaidi — gundua watoa huduma wa ndani, walinganishe upande kwa upande, na uhifadhi mahali pamoja.",
-    "home.hero.badge": "Wanaaminiwa na wakazi",
-    "home.hero.searchName": "Tafuta kwa jina…",
-    "home.hero.searchCity": "Mji",
+    "home.hero.tagline": "Huduma za ndani. Zote mahali pamoja.",
+    "home.hero.title": "Pata Huduma za Ndani\nHaraka na kwa Urahisi",
+    "home.hero.subtitle": "Kuanzia usafiri na migahawa hadi vinyolaji, kufua nguo, kuosha magari na zaidi — ServiceHub hukuunganisha na watoa huduma wa ndani wanaoaminika karibu nawe.",
+    "home.hero.searchPlaceholder": "Unahitaji huduma gani?",
     "home.cta.getStarted": "Anza",
     "home.cta.browse": "Vinjari Watoa Huduma",
     "home.howItWorks": "Jinsi inavyofanya kazi",
+    "home.howItWorks.title": "Tafuta, linganisha, hifadhi, tathmini",
+    "home.trust.providers": "Watoa Huduma Wanaoaminika",
+    "home.trust.nearYou": "Karibu Nawe",
+    "home.trust.fast": "Haraka na Rahisi",
+    "home.tile.transport": "Usafiri",
+    "home.tile.barbers": "Vinyolaji",
+    "home.tile.restaurants": "Migahawa",
+    "home.tile.laundry": "Kufua Nguo",
+    "home.tile.carWash": "Kuosha Magari",
+    "home.tile.repairs": "Matengenezo",
+    "home.tile.groceries": "Mahitaji ya Nyumbani",
+    "home.tile.beauty": "Uzuri na Afya",
+    "home.tile.other": "Huduma Nyingine",
     "home.categories.title": "Kategoria Maarufu",
     "home.categories.viewAll": "Tazama kategoria zote",
     "home.trending.eyebrow": "Inayovuma sasa",
@@ -709,6 +744,17 @@ export const translations = {
     "home.compare.startingPrice": "Bei ya kuanzia",
     "home.compare.city": "Mji",
     "home.compare.book": "Hifadhi",
+
+    // ── Ukurasa wa mwisho: bwaga la mwisho, chini ──
+    "home.ctaBand.title": "Una duka, kiti au zana zako mwenyewe?",
+    "home.ctaBand.subtitle": "Patikana na jamii yako inayotafuta huduma unayotoa. Kujiandikisha kuchukua dakika chache.",
+    "home.ctaBand.join": "Weka biashara yako",
+    "home.ctaBand.dashboard": "Fungua dashibodi yako",
+    "home.footer.tagline": "Saraka ya watoa huduma wa ndani wanaoaminika — linganisha, hifadhi na lipa mahali pamoja.",
+    "home.footer.explore": "Vinjari",
+    "home.footer.account": "Akaunti",
+    "home.footer.forBusiness": "Kwa biashara",
+    "home.footer.rights": "Haki zote zimehifadhiwa.",
 
     // ═══════════════════════════════════════════════════════════════════════
     // BROWSE PAGE - Swahili

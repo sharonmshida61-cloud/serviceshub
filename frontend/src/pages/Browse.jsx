@@ -242,7 +242,7 @@ export default function Browse() {
               setFilters((f) => ({ ...f, category: f.category === c.slug ? "" : c.slug }))
             }
           >
-            <img src={getCategoryImage(c.icon)} alt={c.name} />
+            <img src={getCategoryImage(c)} alt={c.name} />
             {c.name}
           </button>
         ))}

@@ -1,27 +1,42 @@
-/**
- * Category image mapping
- * Maps category slugs to SVG/image URLs for modern iconography
- */
+const URL = (name) => `https://api.iconify.design/${name}.svg?color=%23fb8500&height=48`;
 
-export const CATEGORY_IMAGES = {
-  scissors: "https://api.iconify.design/mdi:scissors.svg?color=%23fb8500&height=48",
-  sparkles: "https://api.iconify.design/mdi:sparkles.svg?color=%23fb8500&height=48",
-  car: "https://api.iconify.design/mdi:car.svg?color=%23fb8500&height=48",
-  shirt: "https://api.iconify.design/mdi:tshirt-crew.svg?color=%23fb8500&height=48",
-  "spray-can": "https://api.iconify.design/mdi:spray-bottle.svg?color=%23fb8500&height=48",
-  wrench: "https://api.iconify.design/mdi:wrench.svg?color=%23fb8500&height=48",
-  zap: "https://api.iconify.design/mdi:lightning-bolt.svg?color=%23fb8500&height=48",
-  cog: "https://api.iconify.design/mdi:cog.svg?color=%23fb8500&height=48",
-  camera: "https://api.iconify.design/mdi:camera.svg?color=%23fb8500&height=48",
-  "book-open": "https://api.iconify.design/mdi:book-open.svg?color=%23fb8500&height=48",
-  dumbbell: "https://api.iconify.design/mdi:dumbbell.svg?color=%23fb8500&height=48",
-  calendar: "https://api.iconify.design/mdi:calendar.svg?color=%23fb8500&height=48",
-  hand: "https://api.iconify.design/mdi:hand-open.svg?color=%23fb8500&height=48",
-  laptop: "https://api.iconify.design/mdi:laptop.svg?color=%23fb8500&height=48",
-  hammer: "https://api.iconify.design/mdi:hammer.svg?color=%23fb8500&height=48",
-  leaf: "https://api.iconify.design/mdi:leaf.svg?color=%23fb8500&height=48",
+const ICON_BY_ICON = {
+  scissors: "mdi:scissors",
+  sparkles: "mdi:sparkles",
+  car: "mdi:car",
+  shirt: "mdi:tshirt-crew",
+  "spray-can": "mdi:spray-bottle",
+  wrench: "mdi:wrench",
+  zap: "mdi:lightning-bolt",
+  cog: "mdi:cog",
+  camera: "mdi:camera",
+  "book-open": "mdi:book-open",
+  dumbbell: "mdi:dumbbell",
+  calendar: "mdi:calendar",
+  hand: "mdi:hand-open",
+  laptop: "mdi:laptop",
+  hammer: "mdi:hammer",
+  leaf: "mdi:leaf",
+  "graduation-cap": "mdi:graduation-cap",
+  utensils: "mdi:food-variant",
+  cross: "mdi:medical-bag",
+  home: "mdi:home-variant",
 };
 
-export const getCategoryImage = (icon) => {
-  return CATEGORY_IMAGES[icon] || CATEGORY_IMAGES.sparkles;
+// Several seeded categories share one icon (three use "scissors"), so the clearer
+// glyph is pinned per slug to keep the category tiles distinguishable.
+const ICON_BY_SLUG = {
+  "hair-salons": "mdi:hair-dryer",
+  tailors: "mdi:needle",
+  "car-washes": "mdi:car-wash",
+  plumbers: "mdi:pipe-wrench",
+  "home-repair": "mdi:tools",
+  laundry: "mdi:washing-machine",
+  "cleaning-services": "mdi:spray-bottle",
 };
+
+export function getCategoryImage(category) {
+  const name =
+    ICON_BY_SLUG[category?.slug] || ICON_BY_ICON[category?.icon] || "mdi:sparkles";
+  return URL(name);
+}
