@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../utils/prisma");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
 const { requireRole } = require("../middleware/role");
+const { readCoords } = require("../utils/coords");
 
 const router = express.Router();
 
@@ -166,6 +167,13 @@ router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req
   const { name, description, categorySlug, address, city, phone, email, attributes } = req.body || {};
   if (!name || !categorySlug) return res.status(400).json({ error: "name and categorySlug are required" });
 
+  let coords;
+  try {
+    coords = readCoords(req.body);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+
   const category = await prisma.category.findUnique({ where: { slug: categorySlug } });
   if (!category) return res.status(400).json({ error: "Unknown category" });
 
@@ -181,6 +189,7 @@ router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req
       email,
       attributes: JSON.stringify(attributes || {}),
       status: "PENDING",
+      ...coords,
     },
   });
   res.status(201).json(parseJsonFields(business));
@@ -195,6 +204,12 @@ router.patch("/:id", requireAuth, async (req, res) => {
   }
 
   const { name, description, address, city, phone, email, attributes } = req.body || {};
+  let coords;
+  try {
+    coords = readCoords(req.body);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
   const updated = await prisma.business.update({
     where: { id: req.params.id },
     data: {
@@ -205,6 +220,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
       ...(phone !== undefined && { phone }),
       ...(email !== undefined && { email }),
       ...(attributes !== undefined && { attributes: JSON.stringify(attributes) }),
+      ...coords,
     },
   });
   res.json(parseJsonFields(updated));

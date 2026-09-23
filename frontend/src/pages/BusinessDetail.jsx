@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { StarDisplay } from "../components/StarRating.jsx";
 import MediaGallery from "../components/MediaGallery.jsx";
+import LocationMap from "../components/LocationMap.jsx";
+import MessageBubble from "../components/MessageBubble.jsx";
 
 export default function BusinessDetail() {
   const { id } = useParams();
@@ -132,6 +134,14 @@ export default function BusinessDetail() {
           <span className="attr-chip" key={k}>{k}: {String(v)}</span>
         ))}
       </div>
+
+      {business.latitude != null && business.longitude != null && (
+        <div className="card biz-location-card">
+          <h3>{t("business.location")}</h3>
+          <p className="hint" style={{ margin: "0 0 4px" }}>{business.address || business.city}</p>
+          <LocationMap latitude={business.latitude} longitude={business.longitude} name={business.name} />
+        </div>
+      )}
 
       {loyaltyCard && (
         <div className="card" style={{ background: "#f0f8ff", marginTop: 16 }}>
@@ -279,10 +289,7 @@ export default function BusinessDetail() {
               <div className="msg-thread">
                 {thread.length === 0 && <p className="hint">{t("business.sayHello")}</p>}
                 {thread.map((m) => (
-                  <div key={m.id} className={`msg-bubble ${m.senderId === user.id ? "mine" : "theirs"}`}>
-                    {m.content}
-                    <div className="msg-time">{new Date(m.createdAt).toLocaleString()}</div>
-                  </div>
+                  <MessageBubble key={m.id} message={m} mine={m.senderId === user.id} />
                 ))}
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>

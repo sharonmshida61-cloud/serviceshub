@@ -1,6 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
+const { coordsFor } = require("./cityCoords");
 
 const CATEGORIES = [
   { name: "Barbers",            slug: "barbers",            icon: "scissors",  schema: [{ key: "chairCount", label: "Number of chairs", type: "number" }, { key: "walkInsWelcome", label: "Walk-ins welcome", type: "boolean" }] },
@@ -806,6 +807,7 @@ async function main() {
         attributes: JSON.stringify(bDef.attributes || {}),
         avgRating: bDef.avgRating || 0,
         reviewCount: bDef.reviewCount || 0,
+        ...coordsFor(bDef.city, bDef.name),
       },
     });
 

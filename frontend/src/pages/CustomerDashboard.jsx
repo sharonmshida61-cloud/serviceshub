@@ -5,6 +5,7 @@ import { StarInput, StarDisplay } from "../components/StarRating.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
+import { directionsUrl } from "../utils/geolocation.js";
 
 const NAV = [
   { key: "home", label: "Home", icon: "home" },
@@ -261,6 +262,16 @@ export default function CustomerDashboard() {
                     </button>
                   )}
                   <Link to={`/business/${b.businessId}`}><button className="btn btn-outline btn-sm">{t("dashboard.customer.messageProvider")}</button></Link>
+                  {b.business?.latitude != null && b.business?.longitude != null && (
+                    <a
+                      className="btn btn-outline btn-sm"
+                      href={directionsUrl({ latitude: b.business.latitude, longitude: b.business.longitude })}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      📍 {t("business.getDirections")}
+                    </a>
+                  )}
                   {b.status === "COMPLETED" && !b.review && (
                     <button className="btn btn-outline btn-sm" onClick={() => setReviewFor(reviewFor === b.id ? null : b.id)}>
                       {t("dashboard.customer.leaveReview")}

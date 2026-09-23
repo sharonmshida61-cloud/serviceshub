@@ -157,17 +157,20 @@ model Payment {
 }
 
 model Message {
-  id         String    @id @default(uuid())
-  businessId String
-  customerId String
-  bookingId  String?
-  senderId   String
-  content    String
-  createdAt  DateTime  @default(now())
-  readAt     DateTime?
-  booking    Booking?  @relation(fields: [bookingId], references: [id])
-  business   Business  @relation(fields: [businessId], references: [id])
-  sender     User      @relation("MessageSender", fields: [senderId], references: [id])
+  id          String    @id @default(uuid())
+  businessId  String
+  customerId  String
+  bookingId   String?
+  senderId    String
+  content     String
+  latitude    Float?
+  longitude   Float?
+  locationName String?
+  createdAt   DateTime  @default(now())
+  readAt      DateTime?
+  booking     Booking?  @relation(fields: [bookingId], references: [id])
+  business    Business  @relation(fields: [businessId], references: [id])
+  sender      User      @relation("MessageSender", fields: [senderId], references: [id])
 }
 
 model Review {

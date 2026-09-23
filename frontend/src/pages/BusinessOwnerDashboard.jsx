@@ -5,6 +5,9 @@ import { StarDisplay } from "../components/StarRating.jsx";
 import MediaUpload from "../components/MediaUpload.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
+import LocationPicker from "../components/LocationPicker.jsx";
+import MessageBubble from "../components/MessageBubble.jsx";
+import { getCurrentPosition, hasCoords } from "../utils/geolocation.js";
 
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: "dashboard" },
@@ -658,6 +661,15 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
 
+        <div className="field">
+          <label>Pin your location</label>
+          <LocationPicker
+            value={form}
+            name={form.name}
+            onChange={(next) => setForm((f) => ({ ...f, latitude: next.latitude, longitude: next.longitude }))}
+          />
+        </div>
+
         {/* ---- Media upload ---- */}
         <div style={{ marginTop: 24, marginBottom: 8 }}>
           <label style={{ fontWeight: 600, display: "block", marginBottom: 6 }}>
@@ -1178,6 +1190,8 @@ function MessagesPanel({ business }) {
   const [activeCustomer, setActiveCustomer] = useState(null);
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
+  const [locBusy, setLocBusy] = useState("");
+  const [locError, setLocError] = useState("");
 
   useEffect(() => { api.businessThreads(business.id).then(setThreads); }, [business.id]);
 
@@ -1192,6 +1206,30 @@ function MessagesPanel({ business }) {
     setMessages((m) => [...m, msg]);
     setText("");
   }
+
+  async function sendLocation(kind) {
+    setLocBusy(kind);
+    setLocError("");
+    try {
+      const coords = kind === "live"
+        ? await getCurrentPosition()
+        : { latitude: business.latitude, longitude: business.longitude };
+      const msg = await api.sendMessage(business.id, {
+        content: text.trim(),
+        customerId: activeCustomer,
+        ...coords,
+        locationName: kind === "live" ? "Where I am now" : business.name,
+      });
+      setMessages((m) => [...m, msg]);
+      setText("");
+    } catch (e) {
+      setLocError(e.message);
+    } finally {
+      setLocBusy("");
+    }
+  }
+
+  const hasPin = hasCoords(business);
 
   return (
     <div>
@@ -1214,15 +1252,22 @@ function MessagesPanel({ business }) {
             <>
               <div className="msg-thread">
                 {messages.map((m) => (
-                  <div key={m.id} className={`msg-bubble ${m.senderId !== activeCustomer ? "mine" : "theirs"}`}>
-                    {m.content}
-                    <div className="msg-time">{new Date(m.createdAt).toLocaleString()}</div>
-                  </div>
+                  <MessageBubble key={m.id} message={m} mine={m.senderId !== activeCustomer} />
                 ))}
               </div>
+              {locError && <div className="alert alert-error">{locError}</div>}
               <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                 <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Reply…" />
                 <button className="btn btn-outline" onClick={send}>Send</button>
+              </div>
+              <div className="msg-loc-actions">
+                <button className="btn btn-outline btn-sm" disabled={!!locBusy} onClick={() => sendLocation("live")}>
+                  {locBusy === "live" ? "Locating…" : "📍 Send my live location"}
+                </button>
+                <button className="btn btn-outline btn-sm" disabled={!!locBusy || !hasPin} onClick={() => sendLocation("pin")}>
+                  📍 Send business pin
+                </button>
+                {!hasPin && <span className="hint">Pin your location in Business details first.</span>}
               </div>
             </>
           )}
@@ -1271,7 +1316,7 @@ function ReviewsPanel({ business }) {
 }
 
 function SettingsPanel({ business, onChange }) {
-  const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "" });
+  const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "", latitude: business.latitude, longitude: business.longitude });
   const [attrs, setAttrs] = useState(business.attributes || {});
   const [saved, setSaved] = useState(false);
 
@@ -1296,6 +1341,15 @@ function SettingsPanel({ business, onChange }) {
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
+
+        <div className="field">
+          <label>Pin your location</label>
+          <LocationPicker
+            value={form}
+            name={form.name}
+            onChange={(next) => setForm((f) => ({ ...f, latitude: next.latitude, longitude: next.longitude }))}
+          />
+        </div>
 
         {schema && schema.length > 0 && <h3>Category details ({business.category.name})</h3>}
         {schema.map((field) => (
