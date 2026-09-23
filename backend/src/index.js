@@ -37,7 +37,23 @@ process.on("unhandledRejection", (err) => {
   console.error("[unhandledRejection]", err?.code || err?.message || err);
 });
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || "*" }));
+// CORS_ORIGIN may be "*" or a comma-separated list; entries are normalized
+// (trimmed, trailing slash stripped) and the request origin is echoed back so
+// browsers never see a mismatch caused by e.g. a trailing slash in the env value.
+const corsOrigins = (process.env.CORS_ORIGIN || "*")
+  .split(",")
+  .map((o) => o.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+app.use(cors({
+  origin(origin, cb) {
+    if (corsOrigins.includes("*") || !origin || corsOrigins.includes(origin.replace(/\/+$/, ""))) {
+      return cb(null, origin || true);
+    }
+    return cb(null, false);
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(morgan("dev"));
 
