@@ -4,16 +4,17 @@ const fs = require("fs");
 const multer = require("multer");
 const { requireAuth } = require("../middleware/auth");
 const prisma = require("../utils/prisma");
+const uploadRoot = require("../utils/uploadRoot");
 
 const router = express.Router();
 
 // ---------------------------------------------------------------------------
-// Storage — files land in <project>/backend/uploads/<businessId>/
+// Storage — files land in <uploadRoot>/<businessId>/
 // Filenames are timestamped to avoid collisions.
 // ---------------------------------------------------------------------------
 const storage = multer.diskStorage({
   destination(req, file, cb) {
-    const dir = path.join(__dirname, "../../uploads", req.params.businessId || "misc");
+    const dir = path.join(uploadRoot, req.params.businessId || "misc");
     fs.mkdirSync(dir, { recursive: true });
     cb(null, dir);
   },
@@ -64,7 +65,7 @@ router.post("/:businessId", requireAuth, upload.single("file"), async (req, res)
   const type = isVideo ? "VIDEO" : "PHOTO";
 
   // Build the public URL — served at /uploads/<businessId>/<filename>
-  const apiBase = process.env.API_BASE_URL || process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 4000}`;
+  const apiBase = process.env.API_BASE_URL || `${req.protocol}://${req.get("host")}`;
   const normalizedApiBase = apiBase.replace(/\/$/, "");
   const url = `${normalizedApiBase}/uploads/${req.params.businessId}/${req.file.filename}`;
 

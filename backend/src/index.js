@@ -28,6 +28,7 @@ const enhancedPortfolioRoutes = require("./routes/enhancedportfolio");
 const uploadRoutes = require("./routes/upload");
 
 const app = express();
+app.set("trust proxy", 1); // behind Vercel/proxies: correct req.protocol and req.ip
 
 // Neon can briefly refuse connections (cold start / pooler blips). Prisma
 // errors thrown inside async routes become unhandled rejections, which would
@@ -41,7 +42,7 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 // Serve uploaded media files (photos/videos) as static assets
-app.use("/uploads", express.static(require("path").join(__dirname, "../uploads")));
+app.use("/uploads", express.static(require("./utils/uploadRoot")));
 
 app.get("/health", (req, res) => res.json({ ok: true, service: "local-services-backend" }));
 
