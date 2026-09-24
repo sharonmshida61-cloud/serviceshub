@@ -88,6 +88,27 @@ router.get("/me", requireAuth, async (req, res) => {
   res.json({ user: sanitize(user) });
 });
 
+const profileSchema = z.object({
+  name: z.string().min(2).max(80).optional(),
+  phone: z.string().max(30).optional(),
+  avatarUrl: z.string().url().startsWith("http").max(600).nullable().optional(),
+});
+
+router.patch("/me", requireAuth, async (req, res) => {
+  const parsed = profileSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+
+  const { name, phone, avatarUrl } = parsed.data;
+  const data = {};
+  if (name !== undefined) data.name = name.trim();
+  if (phone !== undefined) data.phone = phone.trim() || null;
+  if (avatarUrl !== undefined) data.avatarUrl = avatarUrl;
+  if (!Object.keys(data).length) return res.status(400).json({ error: "Nothing to update" });
+
+  const updated = await prisma.user.update({ where: { id: req.user.id }, data });
+  res.json({ user: sanitize(updated) });
+});
+
 // Switch active role (for users with multiple roles)
 router.post("/switchRole/:role", requireAuth, async (req, res) => {
   const { role } = req.params;

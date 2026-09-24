@@ -34,13 +34,19 @@ export function AuthProvider({ children }) {
     return user;
   }
 
+  async function updateProfile(payload) {
+    const { user: updated } = await api.updateProfile(payload);
+    setUser(updated);
+    return updated;
+  }
+
   function logout() {
     localStorage.removeItem("token");
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

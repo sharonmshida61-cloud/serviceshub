@@ -43,6 +43,13 @@ function initials(name) {
   return (name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
+function Avatar({ user, className = "dash-avatar" }) {
+  if (user?.avatarUrl) {
+    return <img className={`${className} avatar-img`} src={user.avatarUrl} alt="" />;
+  }
+  return <span className={className}>{initials(user?.name)}</span>;
+}
+
 export default function DashboardShell({
   accent,
   navItems,
@@ -98,7 +105,7 @@ export default function DashboardShell({
         </nav>
         <div className="dash-side-footer">
           <div className="dash-user-card">
-            <span className="dash-avatar">{initials(user?.name)}</span>
+            <Avatar user={user} />
             <div className="dash-user-meta">
               <span className="dash-user-name">{user?.name}</span>
               <span className="dash-user-role">{roleLabel}</span>
@@ -168,7 +175,7 @@ export default function DashboardShell({
               </form>
             )}
             <NotificationBell />
-            <span className="dash-avatar">{initials(user?.name)}</span>
+            <Avatar user={user} />
             <div className="dash-user-meta">
               <span className="dash-user-name">{user?.name}</span>
               <span className="dash-user-role">{roleLabel}</span>

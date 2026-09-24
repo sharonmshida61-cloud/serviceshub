@@ -2,32 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
+import BusinessQuickView from "../components/BusinessQuickView.jsx";
 import { getCategoryImage } from "../utils/categoryImages.js";
+import { getBusinessCover } from "../utils/businessCovers.js";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 
-// Real Unsplash photos keyed by category icon
-const CATEGORY_COVER = {
-  scissors:    "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?w=600&q=80",
-  sparkles:    "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&q=80",
-  car:         "https://images.unsplash.com/photo-1625047509248-ec889cbff17f?w=600&q=80",
-  shirt:       "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=600&q=80",
-  "spray-can": "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80",
-  wrench:      "https://images.unsplash.com/photo-1504148455328-c376907d081c?w=600&q=80",
-  zap:         "https://images.unsplash.com/photo-1621905251918-48416bd8575a?w=600&q=80",
-  cog:         "https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=80",
-  camera:      "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=600&q=80",
-  "book-open": "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600&q=80",
-  dumbbell:    "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&q=80",
-  calendar:    "https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=600&q=80",
-  hand:        "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600&q=80",
-  laptop:      "https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&q=80",
-  hammer:      "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=600&q=80",
-};
-const FALLBACK_COVER = "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=600&q=80";
-const getBusinessCover = (b) => CATEGORY_COVER[b.category?.icon] || FALLBACK_COVER;
+const MY_AREA_KEY = "serviceshub.myArea";
 
-export default function Browse() {
+export function BrowsePanel({ embed = false, initialCategory = "", initialQuery = "" }) {
   const { user } = useAuth();
   const { t } = useLanguage();
   const SORT_LABELS = {
@@ -36,26 +19,41 @@ export default function Browse() {
     newest: t("browse.sort.newest"),
   };
   const [categories, setCategories] = useState([]);
+  const [cities, setCities] = useState([]);
   const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // "committed" filters — what's actually sent to the API
   const initialParams = new URLSearchParams(window.location.search);
+  const savedArea = localStorage.getItem(MY_AREA_KEY) || "";
+  // Where the customer is — remembered between visits
+  const [myArea, setMyArea] = useState(savedArea);
+  // "committed" filters — what's actually sent to the API
   const [filters, setFilters] = useState({
-    category: initialParams.get("category") || "",
-    q: initialParams.get("q") || "",
-    city: initialParams.get("city") || "",
+    category: initialCategory || initialParams.get("category") || "",
+    q: initialQuery || initialParams.get("q") || "",
+    city: initialParams.get("city") || savedArea,
     sort: "rating",
   });
   // "draft" inputs — what the user is typing before they hit Search
-  const [draft, setDraft] = useState({ q: initialParams.get("q") || "", city: initialParams.get("city") || "" });
+  const [draft, setDraft] = useState({ q: filters.q });
 
   const [compareIds, setCompareIds] = useState([]);
+  const [quickView, setQuickView] = useState(null);
   const debounceRef = useRef(null);
 
   useEffect(() => {
     api.categories().then(setCategories).catch(() => {});
+    api.businessCities().then(setCities).catch(() => {});
   }, []);
+
+  // The dashboard keeps this panel mounted, so a new category tile or search has
+  // to be pushed in as a prop change rather than a remount.
+  useEffect(() => {
+    if (!embed) return;
+    clearTimeout(debounceRef.current);
+    setFilters((f) => ({ ...f, category: initialCategory, q: initialQuery }));
+    setDraft({ q: initialQuery });
+  }, [embed, initialCategory, initialQuery]);
 
   useEffect(() => {
     setLoading(true);
@@ -67,31 +65,40 @@ export default function Browse() {
   }, [filters]);
 
   // Debounced auto-search as the user types (400 ms delay)
-  const scheduleSearch = useCallback((newDraft) => {
+  const scheduleSearch = useCallback((value) => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setFilters((f) => ({ ...f, q: newDraft.q.trim(), city: newDraft.city.trim() }));
+      setFilters((f) => ({ ...f, q: value.trim() }));
     }, 400);
   }, []);
 
-  function handleDraftChange(field, value) {
-    const newDraft = { ...draft, [field]: value };
-    setDraft(newDraft);
-    scheduleSearch(newDraft);
+  function handleQueryChange(value) {
+    setDraft({ q: value });
+    scheduleSearch(value);
   }
 
   // Immediate search on button click or Enter
   function commitSearch(e) {
     e.preventDefault();
     clearTimeout(debounceRef.current);
-    setFilters((f) => ({ ...f, q: draft.q.trim(), city: draft.city.trim() }));
+    setFilters((f) => ({ ...f, q: draft.q.trim() }));
   }
 
   function clearInput(field) {
-    const newDraft = { ...draft, [field]: "" };
-    setDraft(newDraft);
     clearTimeout(debounceRef.current);
+    setDraft((d) => ({ ...d, [field]: "" }));
     setFilters((f) => ({ ...f, [field]: "" }));
+  }
+
+  function chooseMyArea(city) {
+    setMyArea(city);
+    if (city) localStorage.setItem(MY_AREA_KEY, city);
+    else localStorage.removeItem(MY_AREA_KEY);
+    setFilters((f) => ({ ...f, city }));
+  }
+
+  function chooseSearchCity(city) {
+    setFilters((f) => ({ ...f, city }));
   }
 
   function handleSortChange(value) {
@@ -100,8 +107,8 @@ export default function Browse() {
 
   function clearAllFilters() {
     clearTimeout(debounceRef.current);
-    setDraft({ q: "", city: "" });
-    setFilters({ category: "", q: "", city: "", sort: "rating" });
+    setDraft({ q: "" });
+    setFilters({ category: "", q: "", city: myArea, sort: "rating" });
   }
 
   const compareList = useMemo(
@@ -117,14 +124,73 @@ export default function Browse() {
 
   const hasActiveFilters = filters.q || filters.city || filters.category || filters.sort !== "rating";
 
+  // A city can arrive from a link without having any approved listings yet, so
+  // it still has to be representable in the picker.
+  const cityOptions = (selected) =>
+    selected && !cities.some((c) => c.city === selected)
+      ? [...cities, { city: selected, count: 0 }]
+      : cities;
+
+  const optionLabel = (c) => (c.count ? `${c.city} (${c.count})` : c.city);
+
   return (
-    <div className="container page">
+    <div className={embed ? "browse-panel browse-panel--embed" : "container page browse-panel"}>
       {/* ── Page header + search ── */}
       <div className="browse-header">
-        <div>
-          <div className="section-eyebrow">{t("browse.allProviders")}</div>
-          <h1 style={{ marginBottom: 4 }}>{t("browse.title")}</h1>
-          <p style={{ marginBottom: 0 }}>{t("browse.subtitle")}</p>
+        {!embed && (
+          <div>
+            <div className="section-eyebrow">{t("browse.allProviders")}</div>
+            <h1 style={{ marginBottom: 4 }}>{t("browse.title")}</h1>
+            <p style={{ marginBottom: 0 }}>{t("browse.subtitle")}</p>
+          </div>
+        )}
+
+        <div className="browse-location-bar">
+          <div className="loc-field">
+            <label htmlFor="my-area">{t("browse.location.myArea")}</label>
+            <div className="search-input-wrap">
+              <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                <circle cx="12" cy="12" r="8" />
+              </svg>
+              <select id="my-area" value={myArea} onChange={(e) => chooseMyArea(e.target.value)}>
+                <option value="">{t("browse.location.notSet")}</option>
+                {cityOptions(myArea).map((c) => (
+                  <option key={c.city} value={c.city}>{optionLabel(c)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="loc-field">
+            <label htmlFor="search-city">{t("browse.location.searchIn")}</label>
+            <div className="search-input-wrap">
+              <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
+              </svg>
+              <select id="search-city" value={filters.city} onChange={(e) => chooseSearchCity(e.target.value)}>
+                <option value="">{t("browse.location.allCities")}</option>
+                {cityOptions(filters.city).map((c) => (
+                  <option key={c.city} value={c.city}>{optionLabel(c)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <p className="browse-location-hint">
+            {filters.city ? (
+              <>
+                {t("browse.location.showing")} <strong>{filters.city}</strong>
+              </>
+            ) : (
+              t("browse.location.pickOne")
+            )}
+          </p>
         </div>
 
         <form className="browse-search-bar" onSubmit={commitSearch}>
@@ -138,31 +204,12 @@ export default function Browse() {
             <input
               placeholder={t("browse.search.placeholder")}
               value={draft.q}
-              onChange={(e) => handleDraftChange("q", e.target.value)}
+              onChange={(e) => handleQueryChange(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && commitSearch(e)}
               aria-label={t("browse.search.placeholder")}
             />
             {draft.q && (
               <button type="button" className="input-clear-btn" onClick={() => clearInput("q")} aria-label={t("common.remove")}>×</button>
-            )}
-          </div>
-
-          {/* City filter */}
-          <div className="search-input-wrap">
-            <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-            </svg>
-            <input
-              placeholder={t("browse.search.city")}
-              value={draft.city}
-              onChange={(e) => handleDraftChange("city", e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && commitSearch(e)}
-              aria-label={t("browse.search.city")}
-            />
-            {draft.city && (
-              <button type="button" className="input-clear-btn" onClick={() => clearInput("city")} aria-label={t("common.remove")}>×</button>
             )}
           </div>
 
@@ -206,7 +253,7 @@ export default function Browse() {
           {filters.city && (
             <span className="filter-badge">
               📍 {filters.city}
-              <button onClick={() => clearInput("city")} aria-label={t("browse.filters.remove")}>×</button>
+              <button onClick={() => chooseSearchCity("")} aria-label={t("browse.filters.remove")}>×</button>
             </span>
           )}
           {filters.category && (
@@ -226,7 +273,7 @@ export default function Browse() {
       )}
 
       {/* ── Category picker ── */}
-      <div className="category-grid" style={{ marginBottom: 40 }}>
+      <div className="category-grid">
         <button
           className={`category-chip ${filters.category === "" ? "active" : ""}`}
           onClick={() => setFilters((f) => ({ ...f, category: "" }))}
@@ -311,19 +358,20 @@ export default function Browse() {
                     </span>
                   )}
                 </div>
-                {user ? (
-                  <Link to={`/business/${b.id}`}>
-                    <button className="btn btn-primary btn-block" style={{ marginTop: 8 }}>
-                      {t("browse.viewBook")}
-                    </button>
-                  </Link>
-                ) : (
-                  <Link to="/login">
-                    <button className="btn btn-outline btn-block" style={{ marginTop: 8 }}>
+                <div className="biz-card-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => setQuickView(b)}>
+                    {t("browse.view")}
+                  </button>
+                  {user ? (
+                    <Link to={`/business/${b.id}`} className="btn btn-primary">
+                      {t("browse.book")}
+                    </Link>
+                  ) : (
+                    <Link to="/login" className="btn btn-primary">
                       {t("browse.loginToBook")}
-                    </button>
-                  </Link>
-                )}
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -376,6 +424,14 @@ export default function Browse() {
           </div>
         </div>
       )}
+      {quickView && (
+        <BusinessQuickView business={quickView} onClose={() => setQuickView(null)} />
+      )}
     </div>
   );
+}
+
+// Standalone /browse route — same panel with full page chrome.
+export default function Browse() {
+  return <BrowsePanel />;
 }

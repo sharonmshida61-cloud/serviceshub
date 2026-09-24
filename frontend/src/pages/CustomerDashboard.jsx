@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarInput, StarDisplay } from "../components/StarRating.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
+import { BrowsePanel } from "./Browse.jsx";
 import { directionsUrl } from "../utils/geolocation.js";
 
 const NAV = [
@@ -33,6 +34,7 @@ const tileIcon = (c) => `https://api.iconify.design/mdi:${c.mdi}.svg?color=${enc
 
 const SECTION_TITLES = {
   home: "Home",
+  browse: "Find Services",
   bookings: "My Bookings",
   favorites: "Favorites",
   reviews: "My Reviews",
@@ -45,6 +47,8 @@ export default function CustomerDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [section, setSection] = useState("home");
+  // Category/query the dashboard pushes into the inline find-services panel
+  const [browseSeed, setBrowseSeed] = useState({ category: "", q: "" });
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState("");
   const [reviewFor, setReviewFor] = useState(null);
@@ -61,9 +65,14 @@ export default function CustomerDashboard() {
   }, []);
 
   function handleNav(key) {
-    if (key === "browse") return navigate("/browse");
     if (key === "settings") return navigate("/settings");
     setSection(key);
+  }
+
+  // Everything that finds a service stays in the dashboard — no jump to /browse
+  function openBrowse({ category = "", q = "" } = {}) {
+    setBrowseSeed({ category, q });
+    setSection("browse");
   }
 
   async function pay(booking) {
@@ -105,7 +114,7 @@ export default function CustomerDashboard() {
       onNav={handleNav}
       title={SECTION_TITLES[section] || "Home"}
       searchPlaceholder="Search services, businesses, or categories…"
-      onSearch={(q) => navigate(`/browse${q ? `?q=${encodeURIComponent(q)}` : ""}`)}
+      onSearch={(q) => openBrowse({ q })}
     >
       {error && <div className="alert alert-error">{error}</div>}
 
@@ -120,7 +129,7 @@ export default function CustomerDashboard() {
                 onSubmit={(e) => {
                   e.preventDefault();
                   const q = new FormData(e.target).get("q");
-                  navigate(`/browse${q && q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ""}`);
+                  openBrowse({ q: String(q || "").trim() });
                 }}
               >
                 <input name="q" placeholder="Search services, businesses or categories…" />
@@ -131,17 +140,17 @@ export default function CustomerDashboard() {
             <div className="panel">
               <div className="panel-head">
                 <h3>Popular Categories</h3>
-                <Link to="/browse" className="linklike">View All</Link>
+                <button className="linklike" onClick={() => openBrowse()}>View All</button>
               </div>
               <div className="panel-body">
                 <div className="cat-grid cat-grid-4">
                   {POPULAR_CATEGORIES.map((c) => (
-                    <Link key={c.slug} to={`/browse?category=${c.slug}`} className="cat-tile">
+                    <button key={c.slug} type="button" onClick={() => openBrowse({ category: c.slug })} className="cat-tile">
                       <span className="cat-tile-icon" style={{ background: c.bg }}>
                         <img src={tileIcon(c)} alt="" width={24} height={24} />
                       </span>
                       {c.name}
-                    </Link>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -155,7 +164,7 @@ export default function CustomerDashboard() {
                 <button className="linklike" onClick={() => setSection("bookings")}>View All</button>
               </div>
               <div className="panel-body">
-                {!upcoming && <p style={{ margin: 0 }}>No upcoming bookings. <Link to="/browse">Find a provider →</Link></p>}
+                {!upcoming && <p style={{ margin: 0 }}>No upcoming bookings. <button className="linklike" onClick={() => openBrowse()}>Find a provider →</button></p>}
                 {upcoming && (
                   <>
                     <div className="booking-feature">
@@ -180,10 +189,10 @@ export default function CustomerDashboard() {
             <div className="panel">
               <div className="panel-head">
                 <h3>Recently Viewed</h3>
-                <Link to="/browse" className="linklike">View All</Link>
+                <button className="linklike" onClick={() => openBrowse()}>View All</button>
               </div>
               <div className="panel-body">
-                <RecentlyViewed />
+                <RecentlyViewed onBrowse={openBrowse} />
               </div>
             </div>
           </div>
@@ -204,7 +213,7 @@ export default function CustomerDashboard() {
               <div className="promo-body">
                 <div className="promo-title">Need a service?<br />We've got you covered!</div>
                 <p>From transport to home services, find everything you need on Nearby.</p>
-                <button className="btn btn-primary btn-sm" style={{ background: "var(--dash-active)", border: "none" }} onClick={() => navigate("/browse")}>
+                <button className="btn btn-primary btn-sm" style={{ background: "var(--dash-active)", border: "none" }} onClick={() => openBrowse()}>
                   Explore Services
                 </button>
               </div>
@@ -213,7 +222,11 @@ export default function CustomerDashboard() {
         </div>
       )}
 
-      {section === "favorites" && <Favorites />}
+      {section === "browse" && (
+        <BrowsePanel embed initialCategory={browseSeed.category} initialQuery={browseSeed.q} />
+      )}
+
+      {section === "favorites" && <Favorites onBrowse={openBrowse} />}
 
       {section === "reviews" && <MyReviews />}
 
@@ -227,7 +240,7 @@ export default function CustomerDashboard() {
             <div className="empty-state card">
               <h3>{t("dashboard.customer.noBookings")}</h3>
               <p>{t("dashboard.customer.noBookings.desc")}</p>
-              <Link to="/browse"><button className="btn btn-primary">{t("dashboard.customer.discoverProviders")}</button></Link>
+              <button className="btn btn-primary" onClick={() => openBrowse()}>{t("dashboard.customer.discoverProviders")}</button>
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -314,14 +327,14 @@ function QuickLink({ icon, label, onClick }) {
   );
 }
 
-function RecentlyViewed() {
+function RecentlyViewed({ onBrowse }) {
   const [items, setItems] = useState([]);
   useEffect(() => {
     try { setItems(JSON.parse(localStorage.getItem("recentlyViewed") || "[]")); } catch { setItems([]); }
   }, []);
 
   if (items.length === 0) {
-    return <p style={{ margin: 0 }}>Nothing viewed yet. <Link to="/browse">Find services →</Link></p>;
+    return <p style={{ margin: 0 }}>Nothing viewed yet. <button className="linklike" onClick={() => onBrowse()}>Find services →</button></p>;
   }
 
   return (
@@ -415,29 +428,163 @@ function NotificationsPanel() {
 }
 
 function ProfileCard({ user }) {
+  const { updateProfile } = useAuth();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ name: "", phone: "" });
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const fileRef = useRef(null);
+
+  // Drop the previous preview URL when it is replaced or the panel unmounts
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+
   const initials = (user?.name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const photo = preview || (removePhoto ? null : user?.avatarUrl || null);
+
+  function startEdit() {
+    setForm({ name: user?.name || "", phone: user?.phone || "" });
+    setFile(null); setPreview(null); setRemovePhoto(false); setError("");
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setFile(null); setPreview(null); setRemovePhoto(false); setError("");
+    setEditing(false);
+  }
+
+  function pickFile(next) {
+    if (!next) return;
+    if (!next.type.startsWith("image/")) { setError("Choose an image file"); return; }
+    setFile(next);
+    setPreview(URL.createObjectURL(next));
+    setRemovePhoto(false);
+  }
+
+  async function save() {
+    setSaving(true); setError("");
+    try {
+      let avatarUrl;
+      if (file) avatarUrl = (await api.uploadAvatar(file)).url;
+      else if (removePhoto) avatarUrl = null;
+      await updateProfile({
+        name: form.name.trim(),
+        phone: form.phone.trim(),
+        ...(avatarUrl !== undefined && { avatarUrl }),
+      });
+      setFile(null); setPreview(null); setRemovePhoto(false);
+      setEditing(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="panel" style={{ maxWidth: 480 }}>
-      <div className="panel-head"><h3>My Profile</h3></div>
+      <div className="panel-head">
+        <h3>My Profile</h3>
+        {!editing && <button className="linklike" onClick={startEdit}>Edit</button>}
+      </div>
       <div className="panel-body">
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-          <span className="profile-avatar">{initials}</span>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: "1.05rem" }}>{user?.name}</div>
-            <div className="hint">{(user?.currentRole || user?.role || "").replace("_", " ").toLowerCase()}</div>
+        {error && <div className="alert alert-error">{error}</div>}
+
+        <div className="profile-id">
+          {editing ? (
+            <div className="avatar-edit">
+              <button
+                type="button"
+                className="profile-avatar profile-avatar--pick"
+                onClick={() => fileRef.current?.click()}
+                aria-label="Choose a profile picture"
+              >
+                {photo ? <img className="avatar-img" src={photo} alt="" /> : initials}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={(e) => pickFile(e.target.files?.[0])}
+              />
+              <div className="avatar-edit-actions">
+                <button type="button" className="linklike" onClick={() => fileRef.current?.click()}>
+                  {photo ? "Change photo" : "Upload photo"}
+                </button>
+                {photo && (
+                  <button type="button" className="linklike" onClick={() => { setFile(null); setPreview(null); setRemovePhoto(true); }}>
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            photo
+              ? <img className="profile-avatar avatar-img" src={photo} alt="" />
+              : <span className="profile-avatar">{initials}</span>
+          )}
+
+          <div style={{ minWidth: 0 }}>
+            {editing ? (
+              <>
+                <div className="field" style={{ marginBottom: 10 }}>
+                  <label htmlFor="profile-name">Name</label>
+                  <input
+                    id="profile-name"
+                    value={form.name}
+                    maxLength={80}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="profile-phone">Phone</label>
+                  <input
+                    id="profile-phone"
+                    value={form.phone}
+                    maxLength={30}
+                    placeholder="Optional"
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 800, fontSize: "1.05rem" }}>{user?.name}</div>
+                <div className="hint">{(user?.currentRole || user?.role || "").replace("_", " ").toLowerCase()}</div>
+              </>
+            )}
           </div>
         </div>
-        <div className="profile-row"><span className="hint">Email</span><strong>{user?.email}</strong></div>
-        <div className="profile-row"><span className="hint">Member since</span><strong>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</strong></div>
-        <div style={{ marginTop: 16 }}>
-          <Link to="/settings"><button className="btn btn-primary btn-sm" style={{ background: "var(--dash-active)", border: "none" }}>Edit account settings</button></Link>
+
+        {!editing && (
+          <>
+            <div className="profile-row"><span className="hint">Email</span><strong>{user?.email}</strong></div>
+            <div className="profile-row"><span className="hint">Phone</span><strong>{user?.phone || "—"}</strong></div>
+            <div className="profile-row"><span className="hint">Member since</span><strong>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</strong></div>
+          </>
+        )}
+
+        <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          {editing ? (
+            <>
+              <button className="btn btn-primary btn-sm" style={{ background: "var(--dash-active)", border: "none" }} disabled={saving} onClick={save}>
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+              <button className="btn btn-outline btn-sm" disabled={saving} onClick={cancelEdit}>Cancel</button>
+            </>
+          ) : (
+            <Link to="/settings"><button className="btn btn-outline btn-sm">Notification settings</button></Link>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Favorites() {
+function Favorites({ onBrowse }) {
   const [favs, setFavs] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -457,7 +604,7 @@ function Favorites() {
         <div className="empty-state card">
           <h3>No favorites yet</h3>
           <p>Save providers you love to find them fast next time.</p>
-          <Link to="/browse"><button className="btn btn-primary">Discover providers</button></Link>
+          <button className="btn btn-primary" onClick={() => onBrowse()}>Discover providers</button>
         </div>
       )}
       <div className="cat-grid">

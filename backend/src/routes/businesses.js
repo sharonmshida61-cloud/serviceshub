@@ -60,6 +60,27 @@ router.get("/", async (req, res) => {
   res.json(businesses.map(parseJsonFields));
 });
 
+// Must stay above /:id or Express reads "cities" as a business id.
+router.get("/cities", async (req, res) => {
+  const rows = await prisma.business.findMany({
+    where: { status: "APPROVED" },
+    select: { city: true },
+  });
+
+  const counts = new Map();
+  for (const row of rows) {
+    const name = (row.city || "").trim();
+    if (!name) continue;
+    counts.set(name, (counts.get(name) || 0) + 1);
+  }
+
+  res.json(
+    [...counts]
+      .map(([city, count]) => ({ city, count }))
+      .sort((a, b) => b.count - a.count || a.city.localeCompare(b.city))
+  );
+});
+
 // Businesses owned by the current user (for the Business Owner dashboard)
 router.get("/mine", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req, res) => {
   const businesses = await prisma.business.findMany({

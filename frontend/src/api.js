@@ -31,11 +31,27 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   return data;
 }
 
+// Multipart POST — the browser sets the boundary, so no Content-Type header here
+async function uploadFile(path, file) {
+  const form = new FormData();
+  form.append("file", file);
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+  return data;
+}
+
 export const api = {
   // auth
   register: (payload) => request("/auth/register", { method: "POST", body: payload, auth: false }),
   login: (payload) => request("/auth/login", { method: "POST", body: payload, auth: false }),
   me: () => request("/auth/me"),
+  updateProfile: (payload) => request("/auth/me", { method: "PATCH", body: payload }),
 
   // categories
   categories: (all = false) => request(`/categories${all ? "?all=true" : ""}`),
@@ -48,6 +64,7 @@ export const api = {
     const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
     return request(`/businesses${qs ? `?${qs}` : ""}`, { auth: false });
   },
+  businessCities: () => request("/businesses/cities", { auth: false }),
   myBusinesses: () => request("/businesses/mine"),
   business: (id) => request(`/businesses/${id}`, { auth: false }),
   createBusiness: (payload) => request("/businesses", { method: "POST", body: payload }),
@@ -166,20 +183,8 @@ export const api = {
   regenerateReviewSummary: (businessId) => request(`/reviewsummary/${businessId}/regenerate`, { method: "POST" }),
 
   // file upload (multipart — returns { url, type })
-  uploadMedia: (businessId, file) => {
-    const form = new FormData();
-    form.append("file", file);
-    const token = getToken();
-    return fetch(`${BASE_URL}/upload/${businessId}`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
-    }).then(async (res) => {
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
-      return data;
-    });
-  },
+  uploadMedia: (businessId, file) => uploadFile(`/upload/${businessId}`, file),
+  uploadAvatar: (file) => uploadFile("/upload/avatar", file),
 
   // enhanced portfolio (photos, videos, certificates, licenses)
   enhancedPortfolio: (businessId, type) => request(`/enhancedportfolio/business/${businessId}${type ? `?type=${type}` : ""}`, { auth: false }),

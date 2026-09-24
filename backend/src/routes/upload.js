@@ -43,6 +43,46 @@ const upload = multer({
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/upload/avatar
+// Profile pictures belong to the signed-in user, not to a business, so they
+// land in <uploadRoot>/avatars/<userId>.
+// ---------------------------------------------------------------------------
+const avatarUpload = multer({
+  storage: multer.diskStorage({
+    destination(req, file, cb) {
+      const dir = path.join(uploadRoot, "avatars", req.user.id);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename(req, file, cb) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter(req, file, cb) {
+    const images = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"];
+    if (images.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Profile pictures must be JPEG, PNG, GIF, WebP or AVIF images"));
+  },
+});
+
+function publicUrl(req, folder, filename) {
+  const apiBase = process.env.API_BASE_URL || `${req.protocol}://${req.get("host")}`;
+  return `${apiBase.replace(/\/$/, "")}/uploads/${folder}/${filename}`;
+}
+
+router.post("/avatar", requireAuth, avatarUpload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file received" });
+  res.status(201).json({
+    url: publicUrl(req, `avatars/${req.user.id}`, req.file.filename),
+    type: "PHOTO",
+    filename: req.file.filename,
+    size: req.file.size,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/upload/:businessId
 // Multipart upload — field name "file"
 // Returns { url, type } where type is "PHOTO" or "VIDEO"
