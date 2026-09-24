@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarInput, StarDisplay } from "../components/StarRating.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
 import { BrowsePanel } from "./Browse.jsx";
+import { SettingsPanel } from "./Settings.jsx";
 import { directionsUrl } from "../utils/geolocation.js";
 
 const NAV = [
@@ -40,12 +41,12 @@ const SECTION_TITLES = {
   reviews: "My Reviews",
   notifications: "Notifications",
   profile: "Profile",
+  settings: "Settings",
 };
 
 export default function CustomerDashboard() {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [section, setSection] = useState("home");
   // Category/query the dashboard pushes into the inline find-services panel
   const [browseSeed, setBrowseSeed] = useState({ category: "", q: "" });
@@ -65,7 +66,6 @@ export default function CustomerDashboard() {
   }, []);
 
   function handleNav(key) {
-    if (key === "settings") return navigate("/settings");
     setSection(key);
   }
 
@@ -204,7 +204,7 @@ export default function CustomerDashboard() {
                 <QuickLink icon="calendar" label="My Bookings" onClick={() => setSection("bookings")} />
                 <QuickLink icon="heart" label="My Favorites" onClick={() => setSection("favorites")} />
                 <QuickLink icon="star" label="My Reviews" onClick={() => setSection("reviews")} />
-                <QuickLink icon="chat" label="Help & Support" onClick={() => navigate("/settings")} />
+                <QuickLink icon="chat" label="Help & Support" onClick={() => setSection("settings")} />
               </div>
             </div>
 
@@ -232,7 +232,9 @@ export default function CustomerDashboard() {
 
       {section === "notifications" && <NotificationsPanel />}
 
-      {section === "profile" && <ProfileCard user={user} />}
+      {section === "profile" && <ProfileCard user={user} onSettings={() => setSection("settings")} />}
+
+      {section === "settings" && <SettingsPanel embed />}
 
       {section === "bookings" && (
         <>
@@ -427,7 +429,7 @@ function NotificationsPanel() {
   );
 }
 
-function ProfileCard({ user }) {
+function ProfileCard({ user, onSettings }) {
   const { updateProfile } = useAuth();
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "" });
@@ -576,7 +578,7 @@ function ProfileCard({ user }) {
               <button className="btn btn-outline btn-sm" disabled={saving} onClick={cancelEdit}>Cancel</button>
             </>
           ) : (
-            <Link to="/settings"><button className="btn btn-outline btn-sm">Notification settings</button></Link>
+            <button className="btn btn-outline btn-sm" onClick={onSettings}>Notification settings</button>
           )}
         </div>
       </div>

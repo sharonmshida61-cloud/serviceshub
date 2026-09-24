@@ -3,7 +3,8 @@ import { api } from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { languages } from "../i18n/translations";
 
-export default function Settings() {
+// Also rendered inside the customer dashboard, where the panel replaces the page heading.
+export function SettingsPanel({ embed = false }) {
   const { t, language, changeLanguage } = useLanguage();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,112 +37,106 @@ export default function Settings() {
     }
   }
 
-  if (loading) return <div className="container page">{t("common.loading")}</div>;
-  if (!settings) return <div className="container page">{t("settings.loadError")}</div>;
+  const content = loading ? (
+    <p className="hint">{t("common.loading")}</p>
+  ) : !settings ? (
+    <p className="hint">{t("settings.loadError")}</p>
+  ) : (
+    <form onSubmit={handleSave} className="settings-form">
+      <div className="settings-group">
+        <h2>{t("settings.notifications")}</h2>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.emailNotifications}
+            onChange={(e) => setSettings({ ...settings, emailNotifications: e.target.checked })}
+          />
+          {t("settings.emailNotifications")}
+        </label>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.smsNotifications}
+            onChange={(e) => setSettings({ ...settings, smsNotifications: e.target.checked })}
+          />
+          {t("settings.smsNotifications")}
+        </label>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.pushNotifications}
+            onChange={(e) => setSettings({ ...settings, pushNotifications: e.target.checked })}
+          />
+          {t("settings.pushNotifications")}
+        </label>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.marketingEmails}
+            onChange={(e) => setSettings({ ...settings, marketingEmails: e.target.checked })}
+          />
+          {t("settings.marketingEmails")}
+        </label>
+      </div>
+
+      <div className="settings-group settings-grid">
+        <div className="field">
+          <label htmlFor="settings-language">{t("settings.language")}</label>
+          <select id="settings-language" value={language} onChange={(e) => changeLanguage(e.target.value)}>
+            {languages.map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.nativeName}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="settings-timezone">{t("settings.timezone")}</label>
+          <select
+            id="settings-timezone"
+            value={settings.timezone}
+            onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
+          >
+            <option value="UTC">UTC</option>
+            <option value="America/New_York">Eastern Time</option>
+            <option value="America/Chicago">Central Time</option>
+            <option value="America/Denver">Mountain Time</option>
+            <option value="America/Los_Angeles">Pacific Time</option>
+          </select>
+        </div>
+      </div>
+
+      <button type="submit" className="btn btn-primary" disabled={saving}>
+        {saving ? t("settings.saving") : t("settings.save")}
+      </button>
+
+      {message && (
+        <div className={`alert ${message.startsWith(t("common.error")) ? "alert-error" : "alert-success"}`}>
+          {message}
+        </div>
+      )}
+    </form>
+  );
+
+  if (embed) {
+    return (
+      <div className="panel settings-panel settings-panel--embed">
+        <div className="panel-head">
+          <h3>{t("settings.title")}</h3>
+        </div>
+        <div className="panel-body">{content}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="container page">
       <h1>{t("settings.title")}</h1>
-
-      <div className="card">
-        <h2>{t("settings.notifications")}</h2>
-        <form onSubmit={handleSave}>
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={settings.emailNotifications}
-              onChange={(e) =>
-                setSettings({ ...settings, emailNotifications: e.target.checked })
-              }
-            />
-            {t("settings.emailNotifications")}
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={settings.smsNotifications}
-              onChange={(e) =>
-                setSettings({ ...settings, smsNotifications: e.target.checked })
-              }
-            />
-            {t("settings.smsNotifications")}
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={settings.pushNotifications}
-              onChange={(e) =>
-                setSettings({ ...settings, pushNotifications: e.target.checked })
-              }
-            />
-            {t("settings.pushNotifications")}
-          </label>
-
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={settings.marketingEmails}
-              onChange={(e) =>
-                setSettings({ ...settings, marketingEmails: e.target.checked })
-              }
-            />
-            {t("settings.marketingEmails")}
-          </label>
-
-          <div style={{ marginTop: 24 }}>
-            <label>
-              {t("settings.language")}
-              <select
-                value={language}
-                onChange={(e) => changeLanguage(e.target.value)}
-              >
-                {languages.map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.nativeName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div style={{ marginTop: 16 }}>
-            <label>
-              {t("settings.timezone")}
-              <select
-                value={settings.timezone}
-                onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-              >
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern Time</option>
-                <option value="America/Chicago">Central Time</option>
-                <option value="America/Denver">Mountain Time</option>
-                <option value="America/Los_Angeles">Pacific Time</option>
-              </select>
-            </label>
-          </div>
-
-          <div style={{ marginTop: 24 }}>
-            <button type="submit" className="btn btn-primary" disabled={saving}>
-              {saving ? t("settings.saving") : t("settings.save")}
-            </button>
-          </div>
-
-          {message && (
-            <div
-              style={{
-                marginTop: 16,
-                padding: 12,
-                background: message.startsWith(t("common.error")) ? "#fee" : "#efe",
-                borderRadius: 4,
-              }}
-            >
-              {message}
-            </div>
-          )}
-        </form>
-      </div>
+      <div className="card settings-panel">{content}</div>
     </div>
   );
+}
+
+export default function Settings() {
+  return <SettingsPanel />;
 }
