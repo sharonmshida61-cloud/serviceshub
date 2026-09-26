@@ -109,6 +109,32 @@ router.patch("/me", requireAuth, async (req, res) => {
   res.json({ user: sanitize(updated) });
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(6),
+});
+
+router.post("/change-password", requireAuth, async (req, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const { currentPassword, newPassword } = parsed.data;
+
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) return res.status(401).json({ error: "Your current password is incorrect" });
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ error: "Choose a new password different from the current one" });
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+  });
+  res.json({ ok: true });
+});
+
 // Switch active role (for users with multiple roles)
 router.post("/switchRole/:role", requireAuth, async (req, res) => {
   const { role } = req.params;

@@ -10,6 +10,10 @@ export function SettingsPanel({ embed = false }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [pw, setPw] = useState({ current: "", new: "", confirm: "" });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMessage, setPwMessage] = useState("");
+  const [pwError, setPwError] = useState("");
 
   useEffect(() => {
     api
@@ -37,14 +41,39 @@ export function SettingsPanel({ embed = false }) {
     }
   }
 
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    setPwMessage("");
+    setPwError("");
+    if (pw.new.length < 6) {
+      setPwError(t("settings.passwordTooShort"));
+      return;
+    }
+    if (pw.new !== pw.confirm) {
+      setPwError(t("settings.passwordMismatch"));
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await api.changePassword({ currentPassword: pw.current, newPassword: pw.new });
+      setPw({ current: "", new: "", confirm: "" });
+      setPwMessage(t("success.passwordChanged"));
+    } catch (err) {
+      setPwError(err.message);
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
   const content = loading ? (
     <p className="hint">{t("common.loading")}</p>
   ) : !settings ? (
     <p className="hint">{t("settings.loadError")}</p>
   ) : (
-    <form onSubmit={handleSave} className="settings-form">
-      <div className="settings-group">
-        <h2>{t("settings.notifications")}</h2>
+    <>
+      <form onSubmit={handleSave} className="settings-form">
+        <div className="settings-group">
+          <h2>{t("settings.notifications")}</h2>
         <label className="checkbox-label">
           <input
             type="checkbox"
@@ -115,7 +144,59 @@ export function SettingsPanel({ embed = false }) {
           {message}
         </div>
       )}
-    </form>
+      </form>
+
+      <form onSubmit={handleChangePassword} className="settings-form settings-form--password">
+        <h2>{t("settings.changePassword")}</h2>
+
+        <div className="settings-fields">
+          <div className="field">
+            <label htmlFor="current-password">{t("settings.currentPassword")}</label>
+            <input
+              id="current-password"
+              type="password"
+              autoComplete="current-password"
+              required
+              value={pw.current}
+              onChange={(e) => setPw({ ...pw, current: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="new-password">{t("settings.newPassword")}</label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={pw.new}
+              onChange={(e) => setPw({ ...pw, new: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="confirm-password">{t("settings.confirmPassword")}</label>
+            <input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={pw.confirm}
+              onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+            />
+          </div>
+        </div>
+
+        <button type="submit" className="btn btn-primary" disabled={pwSaving}>
+          {pwSaving ? t("settings.saving") : t("settings.updatePassword")}
+        </button>
+
+        {pwError && (
+          <div className="alert alert-error">{pwError}</div>
+        )}
+        {pwMessage && (
+          <div className="alert alert-success">{pwMessage}</div>
+        )}
+      </form>
+    </>
   );
 
   if (embed) {

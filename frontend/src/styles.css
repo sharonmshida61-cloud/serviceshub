@@ -2164,6 +2164,25 @@ table.data-table tr:hover {
   font-size: 0.95rem;
 }
 
+.settings-form > h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.settings-form--password {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+
+.settings-fields {
+  display: grid;
+  gap: 14px;
+  max-width: 360px;
+  margin: 16px 0 22px;
+}
+
+.settings-fields .field { margin-bottom: 0; }
+
 .checkbox-label {
   display: flex;
   align-items: center;

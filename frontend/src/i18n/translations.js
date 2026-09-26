@@ -549,6 +549,8 @@ export const translations = {
     "settings.newPassword": "New Password",
     "settings.confirmPassword": "Confirm Password",
     "settings.updatePassword": "Update Password",
+    "settings.passwordTooShort": "Password must be at least 6 characters",
+    "settings.passwordMismatch": "New passwords don't match",
     "settings.deleteAccount": "Delete Account",
     "settings.deleteAccount.warning": "This action cannot be undone",
 
@@ -1018,6 +1020,8 @@ export const translations = {
     "settings.newPassword": "Nywila Mpya",
     "settings.confirmPassword": "Thibitisha Nywila",
     "settings.updatePassword": "Sasisha Nywila",
+    "settings.passwordTooShort": "Nywila lazima iwe angalau herufi 6",
+    "settings.passwordMismatch": "Nywila mpya hazilingani",
     "settings.deleteAccount": "Futa Akaunti",
     "settings.deleteAccount.warning": "Hatua hii haiwezi kubatilishwa",
     "messages.title": "Ujumbe",

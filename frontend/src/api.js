@@ -52,6 +52,7 @@ export const api = {
   login: (payload) => request("/auth/login", { method: "POST", body: payload, auth: false }),
   me: () => request("/auth/me"),
   updateProfile: (payload) => request("/auth/me", { method: "PATCH", body: payload }),
+  changePassword: (payload) => request("/auth/change-password", { method: "POST", body: payload }),
 
   // categories
   categories: (all = false) => request(`/categories${all ? "?all=true" : ""}`),
