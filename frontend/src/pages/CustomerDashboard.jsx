@@ -149,7 +149,7 @@ export default function CustomerDashboard() {
                       <span className="cat-tile-icon" style={{ background: c.bg }}>
                         <img src={tileIcon(c)} alt="" width={24} height={24} />
                       </span>
-                      {c.name}
+                      <span className="cat-tile-label">{c.name}</span>
                     </button>
                   ))}
                 </div>
@@ -578,7 +578,7 @@ function ProfileCard({ user, onSettings }) {
               <button className="btn btn-outline btn-sm" disabled={saving} onClick={cancelEdit}>Cancel</button>
             </>
           ) : (
-            <button className="btn btn-outline btn-sm" onClick={onSettings}>Notification settings</button>
+            <button className="btn btn-outline btn-sm" onClick={onSettings}>Settings</button>
           )}
         </div>
       </div>

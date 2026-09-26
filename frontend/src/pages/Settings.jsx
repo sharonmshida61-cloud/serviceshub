@@ -72,78 +72,42 @@ export function SettingsPanel({ embed = false }) {
   ) : (
     <>
       <form onSubmit={handleSave} className="settings-form">
-        <div className="settings-group">
-          <h2>{t("settings.notifications")}</h2>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={settings.emailNotifications}
-            onChange={(e) => setSettings({ ...settings, emailNotifications: e.target.checked })}
-          />
-          {t("settings.emailNotifications")}
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={settings.smsNotifications}
-            onChange={(e) => setSettings({ ...settings, smsNotifications: e.target.checked })}
-          />
-          {t("settings.smsNotifications")}
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={settings.pushNotifications}
-            onChange={(e) => setSettings({ ...settings, pushNotifications: e.target.checked })}
-          />
-          {t("settings.pushNotifications")}
-        </label>
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            checked={settings.marketingEmails}
-            onChange={(e) => setSettings({ ...settings, marketingEmails: e.target.checked })}
-          />
-          {t("settings.marketingEmails")}
-        </label>
-      </div>
-
-      <div className="settings-group settings-grid">
-        <div className="field">
-          <label htmlFor="settings-language">{t("settings.language")}</label>
-          <select id="settings-language" value={language} onChange={(e) => changeLanguage(e.target.value)}>
-            {languages.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.nativeName}
-              </option>
-            ))}
-          </select>
+        <div className="settings-group settings-grid">
+          <div className="field">
+            <label htmlFor="settings-language">{t("settings.language")}</label>
+            <select id="settings-language" value={language} onChange={(e) => changeLanguage(e.target.value)}>
+              {languages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.nativeName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="settings-timezone">{t("settings.timezone")}</label>
+            <select
+              id="settings-timezone"
+              value={settings.timezone}
+              onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
+            >
+              <option value="UTC">UTC</option>
+              <option value="America/New_York">Eastern Time</option>
+              <option value="America/Chicago">Central Time</option>
+              <option value="America/Denver">Mountain Time</option>
+              <option value="America/Los_Angeles">Pacific Time</option>
+            </select>
+          </div>
         </div>
-        <div className="field">
-          <label htmlFor="settings-timezone">{t("settings.timezone")}</label>
-          <select
-            id="settings-timezone"
-            value={settings.timezone}
-            onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-          >
-            <option value="UTC">UTC</option>
-            <option value="America/New_York">Eastern Time</option>
-            <option value="America/Chicago">Central Time</option>
-            <option value="America/Denver">Mountain Time</option>
-            <option value="America/Los_Angeles">Pacific Time</option>
-          </select>
-        </div>
-      </div>
 
-      <button type="submit" className="btn btn-primary" disabled={saving}>
-        {saving ? t("settings.saving") : t("settings.save")}
-      </button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
+          {saving ? t("settings.saving") : t("settings.save")}
+        </button>
 
-      {message && (
-        <div className={`alert ${message.startsWith(t("common.error")) ? "alert-error" : "alert-success"}`}>
-          {message}
-        </div>
-      )}
+        {message && (
+          <div className={`alert ${message.startsWith(t("common.error")) ? "alert-error" : "alert-success"}`}>
+            {message}
+          </div>
+        )}
       </form>
 
       <form onSubmit={handleChangePassword} className="settings-form settings-form--password">
