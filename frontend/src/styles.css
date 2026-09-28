@@ -3048,7 +3048,7 @@ table.data-table tr:hover {
 .sh-hero {
   position: relative;
   isolation: isolate;
-  padding: 74px 0 82px;
+  padding: 108px 0 122px;
   background-color: #0a1f38;
   background-position: center 26%;
   background-size: cover;
@@ -3732,7 +3732,7 @@ table.data-table tr:hover {
 }
 
 @media (max-width: 768px) {
-  .sh-hero { padding: 44px 0 54px; }
+  .sh-hero { padding: 66px 0 76px; }
 
   .sh-brand { margin-bottom: 26px; }
 
