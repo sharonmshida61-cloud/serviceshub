@@ -3615,13 +3615,111 @@ table.data-table tr:hover {
 #lp-how,
 #lp-providers { scroll-margin-top: 88px; }
 
+/* ── Guest landing: sign-up prompts in the hero ───────────────────────── */
+.lp-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+/* ── Guest landing: feature list that stands in for the tile collage ──── */
+.lp-features {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+}
+
+.lp-h2--onDark { color: #fff; }
+
+.lp-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(7, 24, 44, 0.62);
+  backdrop-filter: blur(6px);
+}
+
+.lp-feature-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(31, 139, 240, 0.18);
+}
+
+.lp-feature-icon img { width: 20px; height: 20px; }
+
+.lp-feature h3 {
+  font-family: "Inter", sans-serif;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  margin: 0 0 3px;
+  color: #fff;
+}
+
+.lp-feature p {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* ── Guest landing: category teaser rail ──────────────────────────────── */
+.lp-lede-light {
+  max-width: 62ch;
+  margin: -6px 0 20px;
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.lp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.lp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 15px 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.lp-chip:hover {
+  border-color: var(--amber);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.lp-chip img { width: 22px; height: 22px; object-fit: contain; }
+
+.lp-steps--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
 @media (max-width: 1000px) {
   .sh-hero-grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 44px;
   }
 
-  .sh-tiles {
+  .sh-tiles,
+  .lp-features {
     width: 100%;
     max-width: 560px;
   }

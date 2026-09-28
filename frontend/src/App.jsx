@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useAuth } from "./context/AuthContext.jsx";
 import { useLanguage } from "./context/LanguageContext.jsx";
 import Home from "./pages/Home.jsx";
+import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import BusinessDetail from "./pages/BusinessDetail.jsx";
@@ -43,6 +44,10 @@ export default function App() {
   const SHELL_DASHBOARDS = ["/dashboard/customer", "/dashboard/business", "/dashboard/admin"];
   const inShell = SHELL_DASHBOARDS.some((p) => location.pathname.startsWith(p));
 
+  // The stored token is validated asynchronously; assume signed-in while it
+  // resolves so "/" doesn't flash the guest landing page at returning users.
+  const authed = !!user || (loading && !!localStorage.getItem("token"));
+
   return (
     <div>
       {!inShell && (
@@ -67,7 +72,7 @@ export default function App() {
           </div>
           <nav className={`nav-links ${mobileMenuOpen ? "mobile-open" : ""}`}>
             {(!user || currentRole !== "CUSTOMER") && (
-              <NavLink to={user ? "/browse" : "/"} end onClick={closeMobileNav}>{t("nav.discover")}</NavLink>
+              <NavLink to="/browse" end onClick={closeMobileNav}>{t("nav.discover")}</NavLink>
             )}
             {!loading && user && (
               <>
@@ -159,7 +164,7 @@ export default function App() {
       )}
 
       <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={authed ? <Home /> : <Landing />} />
         <Route path="/browse" element={<Browse />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

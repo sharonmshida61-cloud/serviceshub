@@ -80,6 +80,34 @@ export const translations = {
     "home.footer.rights": "All rights reserved.",
 
     // ═══════════════════════════════════════════════════════════════════════
+    // GUEST LANDING PAGE (shown before signing in)
+    // ═══════════════════════════════════════════════════════════════════════
+    "landing.hero.title": "Local help is already\naround the corner",
+    "landing.hero.subtitle": "ServiceHub is a directory of trusted neighbourhood providers — barbers, mechanics, tutors, plumbers and more. Create a free account to search, compare, book and message them all in one place.",
+    "landing.cta.join": "Create a free account",
+    "landing.cta.signin": "I already have an account",
+    "landing.features.eyebrow": "What ServiceHub does",
+    "landing.features.title": "Find, compare and book — without leaving home",
+    "landing.feature.nearby.title": "Search what's nearby",
+    "landing.feature.nearby.desc": "Filter by category, city or your live location and see providers ranked by rating.",
+    "landing.feature.compare.title": "Compare before you commit",
+    "landing.feature.compare.desc": "Ratings, reviews and starting prices side by side, so you choose with the full picture.",
+    "landing.feature.book.title": "Book and message in one place",
+    "landing.feature.book.desc": "Request a time, chat with the provider, and share a pin so they find you.",
+    "landing.feature.review.title": "Rate the job afterwards",
+    "landing.feature.review.desc": "Your review tells the next neighbour exactly what to expect.",
+    "landing.how.note": "Four steps, no phone tag",
+    "landing.categories.eyebrow": "Coverage",
+    "landing.categories.title": "What you'll find inside",
+    "landing.categories.note": "Every category is open to browse. Sign in to book, message and keep your favourites.",
+    "landing.stats.categories": "categories",
+    "landing.stats.cities": "cities",
+    "landing.forCustomers.title": "For customers",
+    "landing.forCustomers.desc": "One account for bookings, chats, favourites and reviews across every provider you use.",
+    "landing.forProviders.title": "For business owners",
+    "landing.forProviders.desc": "List your services, set prices, manage bookings, answer reviews and track earnings from one dashboard.",
+
+    // ═══════════════════════════════════════════════════════════════════════
     // BROWSE PAGE
     // ═══════════════════════════════════════════════════════════════════════
     "browse.title": "Find a service near you",
@@ -764,6 +792,34 @@ export const translations = {
     "home.footer.account": "Akaunti",
     "home.footer.forBusiness": "Kwa biashara",
     "home.footer.rights": "Haki zote zimehifadhiwa.",
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // GUEST LANDING PAGE (shown before signing in)
+    // ═══════════════════════════════════════════════════════════════════════
+    "landing.hero.title": "Msaada wa ndani uko\nkaribu nawe",
+    "landing.hero.subtitle": "ServiceHub ni saraka ya watoa huduma wa mtaa wanaoaminika — vinyolaji, mekanika, mafunzi, mamabuni na wengine. Fungua akaunti bila malipo ili kutafuta, kulinganisha, kuhifadhi na kuwasiliana nao mahali pekee.",
+    "landing.cta.join": "Fungua akaunti bila malipo",
+    "landing.cta.signin": "Nina akaunti tayari",
+    "landing.features.eyebrow": "ServiceHub hufanya nini",
+    "landing.features.title": "Tafuta, linganisha, hifadhi — bila kutoka nyumbani",
+    "landing.feature.nearby.title": "Tafuta ulioko karibu",
+    "landing.feature.nearby.desc": "Chuja kwa kategoria, mji au mahali ulipo, na uone watoa huduma waliopangwa kwa ukadiriaji.",
+    "landing.feature.compare.title": "Linganisha kabla ya kuchagua",
+    "landing.feature.compare.desc": "Ukadiriaji, maoni na bei za kuanzia sambamba, ili uchague kwa picha kamili.",
+    "landing.feature.book.title": "Hifadhi na lunguza mahali pekee",
+    "landing.feature.book.desc": "Omba wakati, zungumza na mtoa huduma, na share msimbo iliakupate.",
+    "landing.feature.review.title": "Tathmini baada ya kazi",
+    "landing.feature.review.desc": "Maoni yako mwambia jirani wa pili achukulie nini.",
+    "landing.how.note": "Hatua nne, bila michezo ya simu",
+    "landing.categories.eyebrow": "Mawide",
+    "landing.categories.title": "Unachokipata ndani",
+    "landing.categories.note": "Kila kategoria ni wazi kwa kutazama. Ingia ili kuhifadhi, kuwasiliana na kuhifadhi vipendwa vyako.",
+    "landing.stats.categories": "kategoria",
+    "landing.stats.cities": "miji",
+    "landing.forCustomers.title": "Kwa wateja",
+    "landing.forCustomers.desc": "Akaunti moja kwa hifadhi, mazungumzo, vipendwa na maoni kwa kila mtoa huduma unaotumia.",
+    "landing.forProviders.title": "Kwa wamiliki wa biashara",
+    "landing.forProviders.desc": "Orodhesha huduma zako, weka bei, simamia hifadhi, jibu maoni na fuata mapato yako kutoka dashibodi moja.",
 
     // ═══════════════════════════════════════════════════════════════════════
     // BROWSE PAGE - Swahili
