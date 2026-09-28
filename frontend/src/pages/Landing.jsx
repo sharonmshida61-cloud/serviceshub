@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import SiteFooter from "../components/SiteFooter.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { getCategoryImage } from "../utils/categoryImages.js";
+import { CATEGORY_COVER, coverForCategory } from "../utils/categoryCovers.js";
 
 const HERO_BG =
   "https://images.unsplash.com/photo-1581596326248-f55ac7852760?w=1600&q=80&auto=format&fit=crop";
@@ -18,7 +19,12 @@ const FEATURES = [
   { key: "review", icon: "star" },
 ];
 
-const STEPS = [{ key: "discover" }, { key: "compare" }, { key: "book" }, { key: "review" }];
+const STEPS = [
+  { key: "discover", photo: "https://images.unsplash.com/photo-1604742762962-83cbaf1560bc?w=600&q=80" },
+  { key: "compare", photo: CATEGORY_COVER.laptop },
+  { key: "book", photo: CATEGORY_COVER.calendar },
+  { key: "review", photo: CATEGORY_COVER.scissors },
+];
 
 const TRUST = [
   { key: "home.trust.providers", icon: "shield-check" },
@@ -26,17 +32,65 @@ const TRUST = [
   { key: "home.trust.fast", icon: "lightning-bolt" },
 ];
 
+// Which group of customers each category mostly serves, shown on its slide.
+const AUDIENCE_BY_SLUG = {
+  "cleaning-services": "households",
+  laundry: "households",
+  "home-repair": "households",
+  plumbers: "households",
+  electricians: "households",
+  landscaping: "households",
+  tailors: "households",
+  transport: "mobility",
+  mechanics: "mobility",
+  "car-washes": "mobility",
+  "food-drinks": "mobility",
+  barbers: "care",
+  "hair-salons": "care",
+  "massage-therapists": "care",
+  "fitness-trainers": "care",
+  "event-planners": "work",
+  photographers: "work",
+  tutors: "work",
+  freelancers: "work",
+};
+
+const SLIDE_MS = 5200;
+const SLIDE_COUNT = 8;
+
 export default function Landing() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [cities, setCities] = useState([]);
   const [q, setQ] = useState("");
+  const [slide, setSlide] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const reducedMotion = useRef(
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
 
   useEffect(() => {
     api.categories().then(setCategories).catch(() => {});
     api.businessCities().then(setCities).catch(() => {});
   }, []);
+
+  const slides = useMemo(
+    () =>
+      categories.slice(0, SLIDE_COUNT).map((c) => ({
+        slug: c.slug,
+        name: c.name,
+        cover: coverForCategory(c),
+        audience: AUDIENCE_BY_SLUG[c.slug] || "households",
+      })),
+    [categories]
+  );
+
+  useEffect(() => {
+    if (paused || reducedMotion.current || slides.length < 2) return undefined;
+    const timer = setInterval(() => setSlide((i) => (i + 1) % slides.length), SLIDE_MS);
+    return () => clearInterval(timer);
+  }, [paused, slides.length]);
 
   const [titleLine1, titleLine2] = t("landing.hero.title").split("\n");
 
@@ -142,6 +196,9 @@ export default function Landing() {
           <div className="lp-steps">
             {STEPS.map((s, i) => (
               <article className="lp-step" key={s.key}>
+                <div className="lp-step-media">
+                  <img src={s.photo} alt="" loading="lazy" />
+                </div>
                 <span className="lp-step-num">{String(i + 1).padStart(2, "0")}</span>
                 <h3>{t(`journey.${s.key}`)}</h3>
                 <p>{t(`journey.${s.key}.desc`)}</p>
@@ -164,6 +221,37 @@ export default function Landing() {
             )}
           </header>
           <p className="lp-lede-light">{t("landing.categories.note")}</p>
+
+          {slides.length > 0 && (
+            <div
+              className="lp-show"
+              onMouseEnter={() => setPaused(true)}
+              onMouseLeave={() => setPaused(false)}
+            >
+              {slides.map((s, i) => (
+                <figure className={`lp-show-slide ${i === slide ? "active" : ""}`} key={s.slug} aria-hidden={i !== slide}>
+                  <img src={s.cover} alt="" loading={i === 0 ? "eager" : "lazy"} />
+                  <figcaption>
+                    <span className="lp-show-audience">{t(`landing.audience.${s.audience}`)}</span>
+                    <h3>{s.name}</h3>
+                    <Link to={`/browse?category=${s.slug}`}>{t("landing.coverage.seeProviders")}</Link>
+                  </figcaption>
+                </figure>
+              ))}
+              <div className="lp-show-dots">
+                {slides.map((s, i) => (
+                  <button
+                    key={s.slug}
+                    type="button"
+                    className={i === slide ? "active" : ""}
+                    aria-label={s.name}
+                    onClick={() => setSlide(i)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="lp-chips">
             {categories.map((c) => (
               <Link key={c.id} to={`/browse?category=${c.slug}`} className="lp-chip">

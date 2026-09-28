@@ -3712,6 +3712,140 @@ table.data-table tr:hover {
 
 .lp-steps--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+/* How-it-works photos bleed to the card edges */
+.lp-step-media {
+  height: 132px;
+  margin: -22px -22px 16px;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+}
+
+.lp-step-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Guest landing: slow coverage slideshow ───────────────────────────── */
+.lp-show {
+  position: relative;
+  aspect-ratio: 16 / 7;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  overflow: hidden;
+  background: #0b1b2e;
+}
+
+.lp-show-slide {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1400ms ease;
+}
+
+.lp-show-slide.active {
+  z-index: 1;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lp-show-slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.02);
+}
+
+/* Drift slowly across the frame while the slide holds. */
+.lp-show-slide.active img { animation: lp-kenburns 6200ms ease-out both; }
+
+@keyframes lp-kenburns {
+  from { transform: scale(1.02) translate3d(-1.2%, 0.8%, 0); }
+  to { transform: scale(1.12) translate3d(1.2%, -0.8%, 0); }
+}
+
+.lp-show-slide figcaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 46px 30px 28px;
+  background: linear-gradient(180deg, rgba(6, 18, 32, 0) 0%, rgba(6, 18, 32, 0.82) 58%, rgba(6, 18, 32, 0.95) 100%);
+  color: #fff;
+}
+
+.lp-show-audience {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.lp-show-slide h3 {
+  font-family: "Inter", sans-serif;
+  font-size: clamp(1.2rem, 2.2vw, 1.7rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 0 12px;
+  color: #fff;
+}
+
+.lp-show-slide figcaption a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.lp-show-slide figcaption a:hover {
+  background: rgba(255, 255, 255, 0.14);
+  text-decoration: none;
+}
+
+.lp-show-dots {
+  position: absolute;
+  right: 26px;
+  bottom: 32px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+}
+
+.lp-show-dots button {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background var(--transition-base), transform var(--transition-base);
+}
+
+.lp-show-dots button.active {
+  background: #fff;
+  transform: scale(1.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-show-slide { transition: none; }
+
+  .lp-show-slide.active img { animation: none; }
+}
+
 @media (max-width: 1000px) {
   .sh-hero-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -3757,6 +3891,12 @@ table.data-table tr:hover {
   .sh-tile:nth-child(3n) { transform: rotate(-0.6deg) translateY(4px); }
 
   .lp-section { margin-top: 52px; }
+
+  .lp-show { aspect-ratio: 4 / 3; }
+
+  .lp-show-slide figcaption { padding: 38px 20px 20px; }
+
+  .lp-show-dots { right: 18px; bottom: 24px; }
 
   .lp-section-head {
     align-items: flex-start;
@@ -3813,6 +3953,22 @@ table.data-table tr:hover {
   .lp-bento { grid-auto-rows: 132px; }
 
   .lp-steps { grid-template-columns: minmax(0, 1fr); }
+
+  /* On a 4:3 phone frame the caption covered over half the photo. The chip row
+     below carries the same category links, so the caption drops its own button. */
+  .lp-show { aspect-ratio: 5 / 4; }
+
+  .lp-show-slide figcaption { padding: 30px 16px 16px; }
+
+  .lp-show-slide h3 { font-size: 1.15rem; margin-bottom: 7px; }
+
+  .lp-show-audience { font-size: 0.66rem; }
+
+  .lp-show-slide figcaption a { display: none; }
+
+  .lp-show-dots { right: 16px; bottom: 18px; }
+
+  .lp-step-media { height: 118px; }
 
   .lp-footer-grid { grid-template-columns: minmax(0, 1fr); }
 
