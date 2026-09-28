@@ -337,7 +337,7 @@ function Overview({ business, onNavigate }) {
                 <StarDisplay rating={Number(displayRating)} />
                 <span className="hint">{displayRating} ({reviewCount} reviews)</span>
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              <div className="btn-row" style={{ marginTop: 14 }}>
                 <button className="btn btn-outline btn-sm" onClick={() => onNavigate("mybusiness")}>Edit Business</button>
                 <Link to={`/business/${business.id}`} className="btn btn-outline btn-sm">View Public Page</Link>
               </div>
@@ -747,7 +747,7 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
           )}
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+        <div className="btn-row" style={{ marginTop: 20 }}>
           <button className="btn btn-primary" disabled={busy}>
             {busy ? "Creating…" : "Create listing"}
           </button>
@@ -1256,7 +1256,7 @@ function MessagesPanel({ business }) {
                 ))}
               </div>
               {locError && <div className="alert alert-error">{locError}</div>}
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <div className="msg-row">
                 <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Reply…" />
                 <button className="btn btn-outline" onClick={send}>Send</button>
               </div>
@@ -1304,7 +1304,7 @@ function ReviewsPanel({ business }) {
               <p style={{ margin: 0 }}>{r.ownerReply}</p>
             </div>
           ) : (
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <div className="msg-row" style={{ marginTop: 8 }}>
               <input placeholder="Write a public reply…" value={replyDrafts[r.id] || ""} onChange={(e) => setReplyDrafts((d) => ({ ...d, [r.id]: e.target.value }))} />
               <button className="btn btn-outline btn-sm" onClick={() => reply(r)}>Reply</button>
             </div>

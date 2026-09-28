@@ -230,7 +230,7 @@ export default function BusinessDetail() {
           {business.services?.length === 0 && <p>{t("business.noServices")}</p>}
           {business.services?.map((s) => (
             <div className="card" style={{ marginBottom: 14 }} key={s.id}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <div className="svc-card-head">
                 <div>
                   <h3 style={{ marginBottom: 4 }}>{s.name}</h3>
                   <p style={{ margin: 0 }}>{s.description}</p>
@@ -292,7 +292,7 @@ export default function BusinessDetail() {
                   <MessageBubble key={m.id} message={m} mine={m.senderId === user.id} />
                 ))}
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <div className="msg-row">
                 <input placeholder={t("business.typeMessage")} value={msgText} onChange={(e) => setMsgText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendMessage()} />
                 <button className="btn btn-outline" onClick={sendMessage}>{t("business.sendMessage")}</button>
               </div>

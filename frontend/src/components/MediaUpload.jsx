@@ -232,7 +232,7 @@ export default function MediaUpload({ businessId, onUploadComplete, onCancel }) 
         />
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+      <div className="btn-row" style={{ marginTop: 4 }}>
         <button type="submit" className="btn btn-primary" disabled={busy}>
           {busy ? progress : mode === "file" ? `Upload ${previews.length || ""} file${previews.length !== 1 ? "s" : ""}` : "Save"}
         </button>

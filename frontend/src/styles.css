@@ -424,6 +424,8 @@ button, input, select, textarea {
   gap: 24px;
 }
 
+.grid > * { min-width: 0; }
+
 .grid-2 {
   grid-template-columns: repeat(2, 1fr);
 }
@@ -1817,7 +1819,7 @@ table.data-table tr:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
+  max-width: 100%;
 }
 
 .smartmatch-chip:hover:not(:disabled) {
@@ -2001,6 +2003,9 @@ table.data-table tr:hover {
 
   .smartmatch-chip {
     max-width: 100%;
+    white-space: normal;
+    border-radius: 14px;
+    line-height: 1.3;
   }
 }
 
@@ -2235,6 +2240,35 @@ table.data-table tr:hover {
   gap: 10px;
 }
 
+/* Service row on the business page: name/description left, price + Book right */
+.svc-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.svc-card-head > :first-child { min-width: 0; }
+.svc-card-head > :last-child { flex: 0 0 auto; }
+
+/* Message composer: the field gives up width, the Send button never does */
+.msg-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.msg-row input { flex: 1; min-width: 0; }
+.msg-row .btn { flex: 0 0 auto; }
+
+/* Action button pairs wrap onto a second line rather than squeezing each label */
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
 .biz-name {
   font-weight: 700;
   font-family: "Fraunces", serif;
@@ -2331,9 +2365,8 @@ table.data-table tr:hover {
   width: 110px;
   flex-shrink: 0;
   color: var(--ink-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: break-word;
+  line-height: 1.25;
 }
 
 .hbar-track {
@@ -2603,11 +2636,16 @@ table.data-table tr:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--line);
 }
 
-.panel-head h3 { margin: 0; font-size: 1rem; }
+/* Flex children default to min-width:auto, so a search field could push the
+   row past a phone viewport and get clipped by the panel. */
+.panel-head > * { min-width: 0; }
+
+.panel-head h3 { margin: 0; font-size: 1rem; overflow-wrap: break-word; }
 .panel-body { padding: 8px 20px 16px; }
 .panel-body.flush { padding: 0; }
 
@@ -2991,6 +3029,16 @@ table.data-table tr:hover {
   .dash-user-meta { display: none; }
 }
 
+/* Smallest phones: the header's fixed-size controls plus the search field
+   need every remaining pixel, so shed padding and shrink the round icons. */
+@media (max-width: 380px) {
+  .dash-header { padding: 9px 10px; gap: 8px; }
+  .dash-header-right { gap: 6px; }
+  .dash-search { padding: 6px 10px; }
+  .dash-signout,
+  .dash-header-right .dash-avatar { width: 30px; height: 30px; }
+}
+
 /* ============================================================================
    LANDING PAGE
    The hero is its own blue-branded world, scoped under .sh-*; the sections
@@ -3201,6 +3249,11 @@ table.data-table tr:hover {
   font-weight: 700;
   line-height: 1.2;
   text-align: left;
+}
+
+.sh-tile-name {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .sh-tile-icon {
@@ -3649,6 +3702,13 @@ table.data-table tr:hover {
   .sh-tile-icon { width: 22px; height: 22px; }
 
   .sh-tile-icon img { width: 14px; height: 14px; }
+
+  /* Three tiles across leaves no room for the icon badge next to a whole word */
+  @media (max-width: 400px) {
+    .sh-tile-icon { display: none; }
+
+    .sh-tile-label { padding: 5px 6px; font-size: 0.68rem; }
+  }
 
   .sh-trust li { max-width: none; }
 

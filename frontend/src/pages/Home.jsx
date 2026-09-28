@@ -223,7 +223,7 @@ export default function Home() {
                   <span className="sh-tile-icon">
                     <img src={glyph(tile.icon)} alt="" />
                   </span>
-                  {t(tile.key)}
+                  <span className="sh-tile-name">{t(tile.key)}</span>
                 </span>
               </Link>
             ))}
