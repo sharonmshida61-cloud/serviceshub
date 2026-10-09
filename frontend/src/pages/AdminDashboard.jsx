@@ -2,29 +2,29 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
-import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
+import DashboardShell from "../components/DashboardShell.jsx";
+import Icon from "../components/Icon.jsx";
+import { buckets, ChartPanel, countByBucket, DonutPanel, SERIES, StatCard } from "../components/DashboardPanels.jsx";
 
 const NAV = [
-  { key: "dashboard", label: "Dashboard", icon: "dashboard" },
-  { key: "users", label: "Manage Users", icon: "users" },
-  { key: "owners", label: "Business Owners", icon: "idcard" },
-  { key: "businesses", label: "Businesses", icon: "store" },
-  { key: "services", label: "Services", icon: "tag" },
-  { key: "categories", label: "Categories", icon: "grid" },
-  { key: "bookings", label: "Bookings", icon: "calendar" },
-  { key: "reviews", label: "Reviews", icon: "star" },
-  { key: "locations", label: "Locations", icon: "pin" },
-  { key: "complaints", label: "Complaints", icon: "alert" },
-  { key: "reports", label: "Reports", icon: "chart" },
-  { key: "settings", label: "System Settings", icon: "settings" },
+  { key: "dashboard", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Live overview of today's activity across the platform." },
+  { key: "users", label: "Manage Users", icon: "users", group: "People", subtitle: "Every account on the platform, with roles and access." },
+  { key: "owners", label: "Business Owners", icon: "idcard", subtitle: "Accounts allowed to publish a listing." },
+  { key: "businesses", label: "Businesses", icon: "store", group: "Catalog", subtitle: "Approve, suspend and inspect published listings." },
+  { key: "pending", label: "Approvals", icon: "inbox", subtitle: "Listings waiting for a decision." },
+  { key: "services", label: "Services", icon: "tag", subtitle: "The catalogue customers can book." },
+  { key: "categories", label: "Categories", icon: "grid", subtitle: "Add a vertical without a code change." },
+  { key: "bookings", label: "Bookings", icon: "calendar", group: "Activity", subtitle: "Every request customers have sent to a business." },
+  { key: "reviews", label: "Reviews", icon: "star", subtitle: "Ratings and comments left after a booking." },
+  { key: "locations", label: "Locations", icon: "pin", subtitle: "Where the platform is actually being used." },
+  { key: "complaints", label: "Complaints", icon: "alert", group: "Platform", subtitle: "Issues raised against a listing." },
+  { key: "reports", label: "Reports", icon: "chart", subtitle: "Revenue and volume at a glance." },
+  { key: "settings", label: "System Settings", icon: "settings", subtitle: "Platform-wide configuration." },
 ];
 
 export default function AdminDashboard() {
-  const { user } = useAuth();
   const [section, setSection] = useState("dashboard");
   const [headerSearch, setHeaderSearch] = useState("");
-  const title = NAV.find((n) => n.key === section)?.label || "Pending Listings";
 
   return (
     <DashboardShell
@@ -32,11 +32,11 @@ export default function AdminDashboard() {
       navItems={NAV}
       active={section}
       onNav={setSection}
-      title={title}
+      context={{ label: "Platform", value: "Nearby", icon: "shield" }}
       searchPlaceholder="Search anything…"
       onSearch={(q) => { setHeaderSearch(q); setSection("users"); }}
     >
-      {section === "dashboard" && <Overview onNav={setSection} userName={user?.name} />}
+      {section === "dashboard" && <Overview onNav={setSection} />}
       {section === "pending" && <PendingListings />}
       {section === "users" && <Users initialSearch={headerSearch} />}
       {section === "owners" && <Users roleFilter="BUSINESS_OWNER" />}
@@ -63,108 +63,110 @@ function timeAgo(date) {
 
 const cap = (s) => s ? s[0] + s.slice(1).toLowerCase().replace("_", " ") : s;
 
-function Overview({ onNav, userName }) {
+function Overview({ onNav }) {
   const [stats, setStats] = useState(null);
   const [businesses, setBusinesses] = useState([]);
-  const [users, setUsers] = useState([]);
   const [bookings, setBookings] = useState([]);
-  const [reviews, setReviews] = useState([]);
+  const [series, setSeries] = useState([]);
+  const [range, setRange] = useState("Monthly");
 
   useEffect(() => {
     api.adminStats().then(setStats).catch(() => {});
     api.adminBusinesses().then(setBusinesses).catch(() => {});
-    api.adminUsers().then(setUsers).catch(() => {});
     api.adminBookings().then(setBookings).catch(() => {});
-    api.adminReviews().then(setReviews).catch(() => {});
+    api.adminBookingSeries().then(setSeries).catch(() => {});
   }, []);
 
   if (!stats) return <p>Loading…</p>;
 
   const byStatus = stats.businessesByStatus || {};
-  const firstName = (userName || "Admin").replace(/^Platform\s+/i, "");
-
-  const activity = [
-    ...businesses.slice(0, 3).map((b) => ({ id: `b-${b.id}`, icon: "store", tint: "tint-blue", title: "New business registered", sub: `${b.name} · ${b.owner?.name || "Owner"}`, at: b.createdAt })),
-    ...users.slice(0, 3).map((u) => ({ id: `u-${u.id}`, icon: "idcard", tint: "tint-green", title: "New user registered", sub: `${u.name} · ${cap(u.role)}`, at: u.createdAt })),
-    ...bookings.slice(0, 2).map((k) => ({ id: `k-${k.id}`, icon: "calendar", tint: "tint-amber", title: "Booking request", sub: `${k.service?.name || "Service"} · ${k.business?.name}`, at: k.createdAt })),
-    ...reviews.slice(0, 2).map((r) => ({ id: `r-${r.id}`, icon: "star", tint: "tint-purple", title: "Review submitted", sub: `${r.rating}★ · ${r.business?.name}`, at: r.createdAt })),
-  ].sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, 5);
+  const bs = buckets(range);
+  const pending = businesses.filter((b) => b.status === "PENDING");
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ marginBottom: 2 }}>Welcome back, {firstName} 👋</h2>
-        <p style={{ margin: 0 }}>Here's what's happening on Nearby today.</p>
+      <div className="stat-grid">
+        <StatCard icon="users" color="blue" label="Total Users" value={stats.users} foot="Registered" footColor="blue" />
+        <StatCard icon="idcard" color="green" label="Business Owners" value={stats.businessOwners} foot="Verified" footColor="green" />
+        <StatCard icon="store" color="purple" label="Businesses" value={stats.businesses} foot={`${byStatus.APPROVED || 0} live`} footColor="purple" />
+        <StatCard icon="tag" color="amber" label="Total Services" value={stats.services} foot="Catalogue" footColor="amber" />
+        <StatCard icon="calendar" color="teal" label="Bookings Today" value={stats.bookingsToday} foot={`${stats.bookings} all time`} footColor="teal" />
+        <StatCard icon="inbox" color="red" label="Pending Approvals" value={pending.length} foot="Needs review" footColor="red" />
       </div>
 
-      <div className="stat-grid">
-        <Stat icon="users" color="blue" label="Total Users" value={stats.users} trend="12% from last month" dir="up" />
-        <Stat icon="idcard" color="green" label="Business Owners" value={stats.businessOwners} trend="8% from last month" dir="up" />
-        <Stat icon="store" color="purple" label="Businesses" value={stats.businesses} trend="10% from last month" dir="up" />
-        <Stat icon="tag" color="amber" label="Total Services" value={stats.services} trend="15% from last month" dir="up" />
-        <Stat icon="calendar" color="teal" label="Bookings Today" value={stats.bookingsToday} trend="20% from yesterday" dir="up" />
-        <Stat icon="inbox" color="red" label="Pending Approvals" value={byStatus.PENDING || 0} trend="5% from last week" dir="down" />
+      <div className="dash-2col">
+        <ChartPanel
+          title="Bookings overview"
+          icon="chart"
+          ranges={["Daily", "Weekly", "Monthly", "Yearly"]}
+          range={range}
+          onRange={setRange}
+          labels={bs.map((b) => b.label)}
+          series={[
+            { name: "Requests", color: SERIES.blue, points: countByBucket(series, bs) },
+            { name: "Completed", color: SERIES.green, points: countByBucket(series, bs, (b) => b.status === "COMPLETED") },
+          ]}
+          emptyTitle="No booking activity for this period."
+          emptyText="Bookings will appear here as customers reserve services."
+        />
+        <DonutPanel
+          title="Listing status"
+          icon="store"
+          total={stats.businesses}
+          totalLabel="Businesses"
+          slices={[
+            { label: "Approved", value: byStatus.APPROVED || 0, color: SERIES.green },
+            { label: "Pending", value: byStatus.PENDING || 0, color: SERIES.amber },
+            { label: "Suspended", value: byStatus.SUSPENDED || 0, color: SERIES.red },
+            { label: "Rejected", value: byStatus.REJECTED || 0, color: SERIES.grey },
+          ]}
+        />
       </div>
 
       <div className="dash-cols">
-        <div className="panel">
+        <section className="panel">
           <div className="panel-head">
-            <h3>Recent Businesses</h3>
-            <button className="linklike" onClick={() => onNav("businesses")}>View All</button>
+            <h3><Icon name="calendar" size={17} />Recent bookings</h3>
+            <button className="linklike" onClick={() => onNav("bookings")}>View all</button>
           </div>
           <div className="panel-body flush">
             <table className="data-table">
-              <thead><tr><th>Business Name</th><th>Owner</th><th>Category</th><th>Status</th><th>Action</th></tr></thead>
+              <thead><tr><th>Customer</th><th>Business</th><th>Service</th><th>Status</th></tr></thead>
               <tbody>
-                {businesses.slice(0, 5).map((b) => (
-                  <tr key={b.id}>
-                    <td>{b.name}</td>
-                    <td>{b.owner?.name}</td>
-                    <td>{b.category?.name}</td>
-                    <td><span className={`pill pill-${b.status.toLowerCase()}`}>{cap(b.status)}</span></td>
-                    <td>
-                      {b.status === "PENDING" ? (
-                        <button className="btn btn-outline btn-sm" onClick={() => onNav("pending")}>Review</button>
-                      ) : (
-                        <Link to={`/business/${b.id}`} className="btn btn-outline btn-sm">View</Link>
-                      )}
-                    </td>
+                {bookings.slice(0, 5).map((k) => (
+                  <tr key={k.id}>
+                    <td>{k.customer?.name}</td>
+                    <td>{k.business?.name}</td>
+                    <td>{k.service?.name}</td>
+                    <td><span className={`pill pill-${k.status.toLowerCase()}`}>{cap(k.status)}</span></td>
                   </tr>
                 ))}
+                {bookings.length === 0 && <tr><td colSpan={4}>No bookings yet.</td></tr>}
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
-        <div className="panel">
-          <div className="panel-head"><h3>Recent Activity</h3></div>
+        <section className="panel">
+          <div className="panel-head">
+            <h3><Icon name="inbox" size={17} />Needs review</h3>
+            <button className="linklike" onClick={() => onNav("pending")}>View queue →</button>
+          </div>
           <div className="panel-body">
-            {activity.map((a) => (
-              <div className="activity-item" key={a.id}>
-                <span className={`activity-icon ${a.tint}`}><Icon name={a.icon} size={16} /></span>
+            {pending.length === 0 && <p className="stat-foot">Nothing waiting on review.</p>}
+            {pending.slice(0, 4).map((b) => (
+              <div className="activity-item" key={b.id}>
+                <span className="activity-icon tint-amber"><Icon name="store" size={16} /></span>
                 <div>
-                  <div className="activity-title">{a.title}</div>
-                  <div className="activity-sub">{a.sub}</div>
-                  <div className="hint">{timeAgo(a.at)}</div>
+                  <div className="activity-title">{b.name}</div>
+                  <div className="activity-sub">{b.category?.name} · {b.owner?.name}</div>
+                  <div className="hint">{timeAgo(b.createdAt)}</div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </div>
-    </div>
-  );
-}
-
-function Stat({ icon, color, label, value, trend, dir = "up" }) {
-  return (
-    <div className={`stat-card sc-${color}`}>
-      <span className={`stat-icon solid-${color}`}><Icon name={icon} size={20} /></span>
-      <span className="stat-text">
-        <span className="stat-label">{label}</span>
-        <span className="stat-value">{value}</span>
-        {trend && <span className={`stat-trend trend-${dir}`}>{dir === "up" ? "↑" : "↓"} {trend}</span>}
-      </span>
     </div>
   );
 }
@@ -349,10 +351,10 @@ function Reports() {
   const byStatus = stats.businessesByStatus || {};
   return (
     <div className="stat-grid">
-      <Stat icon="wallet" color="teal" label="Total Revenue" value={formatMoney(stats.revenueCents)} />
-      <Stat icon="calendar" color="blue" label="Total Bookings" value={stats.bookings} />
-      <Stat icon="store" color="green" label="Approved Listings" value={byStatus.APPROVED || 0} />
-      <Stat icon="star" color="purple" label="Total Services" value={stats.services} />
+      <StatCard icon="wallet" color="teal" label="Total Revenue" value={formatMoney(stats.revenueCents)} foot="Paid" footColor="teal" />
+      <StatCard icon="calendar" color="blue" label="Total Bookings" value={stats.bookings} foot="Since launch" footColor="blue" />
+      <StatCard icon="store" color="green" label="Approved Listings" value={byStatus.APPROVED || 0} foot="Published" footColor="green" />
+      <StatCard icon="star" color="purple" label="Total Services" value={stats.services} foot="Catalogue" footColor="purple" />
     </div>
   );
 }

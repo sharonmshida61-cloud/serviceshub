@@ -1,30 +1,32 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
 import MediaUpload from "../components/MediaUpload.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
+import DashboardShell from "../components/DashboardShell.jsx";
+import Icon from "../components/Icon.jsx";
+import { buckets, ChartPanel, DonutPanel, SERIES, StatCard, sumByBucket } from "../components/DashboardPanels.jsx";
+import { SettingsPanel as AccountSettingsPanel } from "./Settings.jsx";
 import LocationPicker from "../components/LocationPicker.jsx";
 import MessageBubble from "../components/MessageBubble.jsx";
 import { getCurrentPosition, hasCoords } from "../utils/geolocation.js";
 
 const NAV = [
-  { key: "dashboard", label: "Dashboard", icon: "dashboard" },
-  { key: "mybusiness", label: "My Business", icon: "store" },
-  { key: "services", label: "My Services", icon: "tag" },
-  { key: "bookings", label: "Bookings", icon: "calendar" },
-  { key: "customers", label: "Customers", icon: "users" },
-  { key: "reviews", label: "Reviews", icon: "star" },
-  { key: "earnings", label: "Earnings", icon: "wallet" },
-  { key: "analytics", label: "Analytics", icon: "chart" },
-  { key: "notifications", label: "Notifications", icon: "bell" },
-  { key: "settings", label: "Settings", icon: "settings" },
+  { key: "dashboard", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Live overview of today's activity at your business." },
+  { key: "mybusiness", label: "My Business", icon: "store", group: "Listing", subtitle: "Details, photos and the address customers see." },
+  { key: "services", label: "My Services", icon: "tag", subtitle: "What you offer, at what price." },
+  { key: "bookings", label: "Bookings", icon: "calendar", group: "Operations", subtitle: "Requests, confirmations and completed jobs." },
+  { key: "customers", label: "Customers", icon: "users", subtitle: "Everyone who has booked with you." },
+  { key: "reviews", label: "Reviews", icon: "star", subtitle: "Ratings left after a completed booking." },
+  { key: "earnings", label: "Earnings", icon: "wallet", group: "Finance", subtitle: "Collected and outstanding payment." },
+  { key: "analytics", label: "Analytics", icon: "chart", subtitle: "How the listing is performing." },
+  { key: "notifications", label: "Notifications", icon: "bell", group: "Account", subtitle: "Activity worth acting on." },
+  { key: "settings", label: "Settings", icon: "settings", subtitle: "Profile, password and preferences." },
 ];
 
 export default function BusinessOwnerDashboard() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [businesses, setBusinesses] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [section, setSection] = useState("dashboard");
@@ -34,6 +36,7 @@ export default function BusinessOwnerDashboard() {
 
   function load() {
     api.myBusinesses().then((list) => {
+      setError("");
       setBusinesses(list);
       if (!activeId && list.length) setActiveId(list[0].id);
     }).catch((e) => setError(e.message));
@@ -42,25 +45,22 @@ export default function BusinessOwnerDashboard() {
   useEffect(load, []);
   useEffect(() => { api.categories().then(setCategories); }, []);
 
-  function handleNav(key) {
-    if (key === "settings") return navigate("/settings");
-    setSection(key);
-  }
-
   const active = businesses.find((b) => b.id === activeId);
-  const title = NAV.find((n) => n.key === section)?.label || "Business";
 
   // --- Pending-approval screen shown right after registration ---
   const justRegistered = businesses.length === 0 && !showNewBiz;
 
   return (
-    <DashboardShell accent="owner" navItems={NAV} active={section} onNav={handleNav} title={title}
+    <DashboardShell accent="owner" navItems={NAV} active={section} onNav={setSection}
+      context={{ label: "Listing", value: active?.name || "None yet", icon: "store" }}
       searchPlaceholder="Search bookings, customers, services…"
       onSearch={() => setSection("bookings")}
     >
       {error && <div className="alert alert-error">{error}</div>}
 
-      {justRegistered && (
+      {section === "settings" && <AccountSettingsPanel embed />}
+
+      {section !== "settings" && justRegistered && (
         <div className="card" style={{ maxWidth: 560, margin: "40px auto", textAlign: "center", padding: "40px 32px" }}>
           <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏪</div>
           <h2 style={{ marginBottom: 8 }}>Welcome, {user?.name || "there"}!</h2>
@@ -92,7 +92,7 @@ export default function BusinessOwnerDashboard() {
 
       {businesses.length > 0 && active && (
         <>
-          {(businesses.length > 1 || section !== "dashboard") && (
+          {section !== "settings" && (businesses.length > 1 || section !== "dashboard") && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 22 }}>
             {businesses.length > 1 && businesses.map((b) => (
               <button
@@ -109,7 +109,7 @@ export default function BusinessOwnerDashboard() {
           )}
 
           {section !== "dashboard" && active.status === "PENDING" && (
-            <div className="alert" style={{ background: "var(--amber-light, #fef9c3)", borderLeft: "4px solid var(--amber, #f59e0b)", color: "#92400e", marginBottom: 20 }}>
+            <div className="alert" style={{ background: "var(--amber-light)", borderLeft: "4px solid var(--amber, #f59e0b)", color: "#ffc978", marginBottom: 20 }}>
               <strong>Awaiting admin approval</strong> — your listing has been submitted and is under review.
               You'll be able to add services, manage employees, and accept bookings once it's approved.
               No action needed on your end.
@@ -144,26 +144,6 @@ export default function BusinessOwnerDashboard() {
   );
 }
 
-function Stat({ icon, color, label, value, trend, dir = "up" }) {
-  return (
-    <div className={`stat-card sc-${color}`}>
-      <span className={`stat-icon solid-${color}`}><Icon name={icon} size={20} /></span>
-      <span className="stat-text">
-        <span className="stat-label">{label}</span>
-        <span className="stat-value">{value}</span>
-        {trend && <span className={`stat-trend trend-${dir}`}>{dir === "up" ? "↑" : "↓"} {trend}</span>}
-      </span>
-    </div>
-  );
-}
-
-function pctTrend(today, yesterday) {
-  if (!yesterday) return today ? { text: "new today", dir: "up" } : null;
-  const pct = Math.round(((today - yesterday) / yesterday) * 100);
-  if (pct === 0) return { text: "same as yesterday", dir: "up" };
-  return { text: `${Math.abs(pct)}% from yesterday`, dir: pct > 0 ? "up" : "down" };
-}
-
 function initials(name) {
   return (name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
@@ -176,32 +156,10 @@ function timeAgo(d) {
   return new Date(d).toLocaleDateString();
 }
 
-function AreaChart({ values }) {
-  const max = Math.max(...values, 1);
-  const W = 560, H = 160, PAD = 12;
-  const step = (W - PAD * 2) / (values.length - 1);
-  const pts = values.map((v, i) => [PAD + i * step, H - PAD - (v / max) * (H - PAD * 2 - 8)]);
-  const line = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
-  const area = `${line} L ${pts[pts.length - 1][0].toFixed(1)} ${H - PAD} L ${pts[0][0].toFixed(1)} ${H - PAD} Z`;
-  return (
-    <svg className="area-chart" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id="ownerAreaFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#0f9d6c" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#0f9d6c" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill="url(#ownerAreaFill)" />
-      <path d={line} fill="none" stroke="#0f9d6c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      {pts.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="3.5" fill="#fff" stroke="#0f9d6c" strokeWidth="2" />)}
-    </svg>
-  );
-}
-
 function Overview({ business, onNavigate }) {
-  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [photo, setPhoto] = useState(null);
+  const [range, setRange] = useState("Monthly");
 
   useEffect(() => {
     setData(null);
@@ -227,70 +185,81 @@ function Overview({ business, onNavigate }) {
 
   const now = new Date();
   const sameDay = (d, ref) => new Date(d).toDateString() === ref.toDateString();
-  const yesterday = new Date(now.getTime() - 864e5);
   const todays = bookings.filter((b) => sameDay(b.scheduledAt, now)).length;
-  const yests = bookings.filter((b) => sameDay(b.scheduledAt, yesterday)).length;
-  const bookTrend = pctTrend(todays, yests);
+  const pending = bookings.filter((b) => b.status === "PENDING").length;
 
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const newCustomers = customers.filter((c) => new Date(c.customer?.createdAt) >= monthStart).length;
-  const newServices = services.filter((s) => new Date(s.createdAt) >= monthStart).length;
+  const revenueThisMonth = bookings
+    .filter((b) => b.payment?.status === "PAID" && new Date(b.createdAt) >= monthStart)
+    .reduce((s, b) => s + (b.payment?.amountCents || b.priceCents || 0), 0);
 
   const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
-  const d30 = new Date(now.getTime() - 30 * 864e5);
-  const d60 = new Date(now.getTime() - 60 * 864e5);
-  const avgOf = (xs) => (xs.length ? xs.reduce((s, r) => s + r.rating, 0) / xs.length : null);
-  const a1 = avgOf(reviews.filter((r) => new Date(r.createdAt) >= d30));
-  const a0 = avgOf(reviews.filter((r) => { const t = new Date(r.createdAt); return t < d30 && t >= d60; }));
-  const ratingDelta = a1 != null && a0 != null ? a1 - a0 : null;
+  const displayRating = business.avgRating ?? Number(avgRating.toFixed(1));
+  const reviewCount = business.reviewCount ?? reviews.length;
 
   const upcoming = bookings
     .filter((b) => ["PENDING", "CONFIRMED"].includes(b.status) && new Date(b.scheduledAt) >= now)
     .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))
     .slice(0, 5);
 
-  const days = [...Array(7)].map((_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (6 - i));
-    const paid = bookings
-      .filter((b) => b.payment?.status === "PAID" && sameDay(b.scheduledAt, d))
-      .reduce((s, b) => s + (b.payment?.amountCents || b.priceCents || 0), 0);
-    return { label: d.toLocaleDateString(undefined, { weekday: "short" }), paid };
-  });
-  const weekTotal = days.reduce((s, d) => s + d.paid, 0);
-
-  const displayRating = business.avgRating ?? Number(avgRating.toFixed(1));
-  const reviewCount = business.reviewCount ?? reviews.length;
+  const bs = buckets(range);
+  const paid = (b) => b.payment?.status === "PAID";
+  const collected = (b) => b.payment?.amountCents || b.priceCents || 0;
+  const expected = (b) => b.priceCents || 0;
+  const byStatus = (s) => bookings.filter((b) => b.status === s).length;
 
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ marginBottom: 2 }}>Welcome back, {(business.owner?.name || user?.name || "there").split(" ")[0]} 👋</h2>
-        <p style={{ margin: 0 }}>Manage your business and grow your services.</p>
+      <div className="stat-grid">
+        <StatCard icon="calendar" color="blue" label="Today's Bookings" value={todays} foot="Scheduled" footColor="blue" />
+        <StatCard icon="inbox" color="red" label="Pending Requests" value={pending} foot="Needs a reply" footColor="red" />
+        <StatCard icon="users" color="green" label="Total Customers" value={customers.length} foot={`${newCustomers} new this month`} footColor="green" />
+        <StatCard icon="tag" color="purple" label="My Services" value={services.length} foot="Published" footColor="purple" />
+        <StatCard icon="star" color="amber" label="Average Rating" value={displayRating} foot={`${reviewCount} reviews`} footColor="amber" />
+        <StatCard icon="wallet" color="teal" label="Revenue This Month" value={formatMoney(revenueThisMonth)} foot="Collected" footColor="teal" />
       </div>
 
-      <div className="stat-grid">
-        <Stat icon="calendar" color="blue" label="Today's Bookings" value={todays} trend={bookTrend?.text} dir={bookTrend?.dir} />
-        <Stat icon="users" color="green" label="Total Customers" value={customers.length} trend={newCustomers ? `${newCustomers} new this month` : null} />
-        <Stat icon="tag" color="purple" label="My Services" value={services.length} trend={newServices ? `${newServices} new this month` : null} />
-        <Stat
-          icon="star" color="amber" label="Average Rating" value={displayRating}
-          trend={ratingDelta != null ? `${Math.abs(ratingDelta).toFixed(1)} from last month` : `based on ${reviewCount} reviews`}
-          dir={ratingDelta != null && ratingDelta < 0 ? "down" : "up"}
+      <div className="dash-2col">
+        <ChartPanel
+          title="Revenue overview"
+          icon="chart"
+          ranges={["Daily", "Weekly", "Monthly", "Yearly"]}
+          range={range}
+          onRange={setRange}
+          labels={bs.map((b) => b.label)}
+          series={[
+            { name: "Collected", color: SERIES.green, points: sumByBucket(bookings, bs, collected, paid) },
+            { name: "Expected", color: SERIES.amber, points: sumByBucket(bookings, bs, expected, (b) => !paid(b) && b.status !== "CANCELLED") },
+          ]}
+          emptyTitle="No revenue activity for this period."
+          emptyText="Bookings will appear here as customers reserve your services."
+        />
+        <DonutPanel
+          title="Booking status"
+          icon="clipboard"
+          total={bookings.length}
+          totalLabel="Bookings"
+          slices={[
+            { label: "Confirmed", value: byStatus("CONFIRMED"), color: SERIES.green },
+            { label: "Pending", value: byStatus("PENDING"), color: SERIES.amber },
+            { label: "Completed", value: byStatus("COMPLETED"), color: SERIES.blue },
+            { label: "Cancelled", value: byStatus("CANCELLED"), color: SERIES.red },
+          ]}
         />
       </div>
 
       <div className="dash-cols">
         <div>
-          <div className="panel">
+          <section className="panel">
             <div className="panel-head">
-              <h3>Upcoming Bookings</h3>
-              <button className="linklike" onClick={() => onNavigate("bookings")}>View All</button>
+              <h3><Icon name="calendar" size={17} />Upcoming bookings</h3>
+              <button className="linklike" onClick={() => onNavigate("bookings")}>View all</button>
             </div>
             <div className="panel-body flush">
               {upcoming.length === 0 && <p style={{ padding: "16px 20px", margin: 0 }}>No upcoming bookings.</p>}
               {upcoming.length > 0 && (
-                <table className="data-table" style={{ margin: 0 }}>
+                <table className="data-table">
                   <thead><tr><th>Customer</th><th>Service</th><th>Date & Time</th><th>Status</th></tr></thead>
                   <tbody>
                     {upcoming.map((b) => (
@@ -305,18 +274,30 @@ function Overview({ business, onNavigate }) {
                 </table>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="panel">
+          <section className="panel">
             <div className="panel-head">
-              <h3>Earnings Overview</h3>
-              <span className="hint">{formatMoney(weekTotal)} · last 7 days</span>
+              <h3><Icon name="star" size={17} />Recent reviews</h3>
+              <button className="linklike" onClick={() => onNavigate("reviews")}>View all</button>
             </div>
             <div className="panel-body">
-              <AreaChart values={days.map((d) => d.paid)} />
-              <div className="chart-x">{days.map((d, i) => <span key={i}>{d.label}</span>)}</div>
+              {reviews.length === 0 && <p style={{ margin: 0 }}>No reviews yet.</p>}
+              {reviews.slice(0, 3).map((r) => (
+                <div className="review-row" key={r.id}>
+                  <span className="rr-avatar">{initials(r.customer?.name)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="rr-head">
+                      <strong>{r.customer?.name || "Customer"}</strong>
+                      <span className="hint">{timeAgo(r.createdAt)}</span>
+                    </div>
+                    <StarDisplay rating={r.rating} />
+                    {r.comment && <div className="activity-sub" style={{ marginTop: 2 }}>{r.comment}</div>}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          </section>
         </div>
 
         <div>
@@ -345,7 +326,7 @@ function Overview({ business, onNavigate }) {
           </div>
 
           <div className="panel">
-            <div className="panel-head"><h3>Quick Actions</h3></div>
+            <div className="panel-head"><h3><Icon name="grid" size={17} />Quick actions</h3></div>
             <div className="panel-body">
               <div className="qa-grid">
                 <button className="qa-tile" onClick={() => onNavigate("services")}>
@@ -367,29 +348,6 @@ function Overview({ business, onNavigate }) {
               </div>
             </div>
           </div>
-
-          <div className="panel">
-            <div className="panel-head">
-              <h3>Recent Reviews</h3>
-              <button className="linklike" onClick={() => onNavigate("reviews")}>View All</button>
-            </div>
-            <div className="panel-body">
-              {reviews.length === 0 && <p style={{ margin: 0 }}>No reviews yet.</p>}
-              {reviews.slice(0, 3).map((r) => (
-                <div className="review-row" key={r.id}>
-                  <span className="rr-avatar">{initials(r.customer?.name)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="rr-head">
-                      <strong>{r.customer?.name || "Customer"}</strong>
-                      <span className="hint">{timeAgo(r.createdAt)}</span>
-                    </div>
-                    <StarDisplay rating={r.rating} />
-                    {r.comment && <div className="activity-sub" style={{ marginTop: 2 }}>{r.comment}</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -406,7 +364,7 @@ function MyBusinessSection({ business, onChange }) {
           <button key={k} type="button" className={tab === k ? "tab active" : "tab"} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
-      {tab === "details" && <SettingsPanel business={business} onChange={onChange} />}
+      {tab === "details" && <ListingDetailsPanel business={business} onChange={onChange} />}
       {tab === "media" && <MediaPanel business={business} />}
       {tab === "team" && (business.status === "APPROVED"
         ? <EmployeesPanel business={business} onChange={onChange} />
@@ -428,15 +386,16 @@ function EarningsPanel({ business }) {
   const amountOf = (b) => b.payment?.amountCents || b.priceCents || 0;
   const total = paid.reduce((s, b) => s + amountOf(b), 0);
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const thisMonth = paid.filter((b) => new Date(b.scheduledAt) >= monthStart).reduce((s, b) => s + amountOf(b), 0);
+  const paidThisMonth = paid.filter((b) => new Date(b.scheduledAt) >= monthStart);
+  const thisMonth = paidThisMonth.reduce((s, b) => s + amountOf(b), 0);
+  const paidShare = bookings.length ? Math.round((paid.length / bookings.length) * 100) : 0;
 
   return (
     <div>
-      <h2>Earnings</h2>
       <div className="stat-grid">
-        <Stat icon="wallet" color="green" label="Total Earnings" value={formatMoney(total)} />
-        <Stat icon="chart" color="blue" label="This Month" value={formatMoney(thisMonth)} />
-        <Stat icon="calendar" color="purple" label="Paid Bookings" value={paid.length} />
+        <StatCard icon="wallet" color="green" label="Total Earnings" value={formatMoney(total)} foot="Since launch" footColor="green" />
+        <StatCard icon="chart" color="blue" label="This Month" value={formatMoney(thisMonth)} foot={`${paidThisMonth.length} paid`} />
+        <StatCard icon="calendar" color="purple" label="Paid Bookings" value={paid.length} foot={`${paidShare}% of bookings`} footColor="purple" />
       </div>
       <div className="panel">
         <div className="panel-head"><h3>Payments</h3></div>
@@ -489,12 +448,11 @@ function AnalyticsPanel({ business }) {
 
   return (
     <div>
-      <h2>Analytics</h2>
       <div className="stat-grid">
-        <Stat icon="calendar" color="blue" label="Total Bookings" value={bookings.length} />
-        <Stat icon="clipboard" color="teal" label="Completion Rate" value={completion} />
-        <Stat icon="users" color="green" label="Total Customers" value={customers.length} />
-        <Stat icon="heart" color="purple" label="Repeat Customers" value={repeat} />
+        <StatCard icon="calendar" color="blue" label="Total Bookings" value={bookings.length} foot="All time" />
+        <StatCard icon="clipboard" color="teal" label="Completion Rate" value={completion} foot={`${completed} completed`} footColor="teal" />
+        <StatCard icon="users" color="green" label="Total Customers" value={customers.length} foot="Booked with you" footColor="green" />
+        <StatCard icon="heart" color="purple" label="Repeat Customers" value={repeat} foot={customers.length ? `${Math.round((repeat / customers.length) * 100)}% of customers` : "None yet"} footColor="purple" />
       </div>
       <div className="grid grid-2">
         <div className="panel">
@@ -799,12 +757,13 @@ function CustomersPanel({ business, onStatusChange }) {
   });
 
   const STATUS_COLOR = {
-    PENDING:   { bg: "#fef9c3", color: "#854d0e" },
-    CONFIRMED: { bg: "#dbeafe", color: "#1e40af" },
-    COMPLETED: { bg: "#dcfce7", color: "#166534" },
-    DECLINED:  { bg: "#fee2e2", color: "#991b1b" },
-    CANCELLED: { bg: "#f3f4f6", color: "#374151" },
+    PENDING:   { bg: "rgba(251, 133, 0, 0.16)", color: "#ffa62b" },
+    CONFIRMED: { bg: "rgba(88, 166, 255, 0.16)", color: "#79b8ff" },
+    COMPLETED: { bg: "rgba(45, 207, 143, 0.16)", color: "#3ddc8b" },
+    DECLINED:  { bg: "rgba(255, 107, 107, 0.16)", color: "#ff8b8b" },
+    CANCELLED: { bg: "rgba(142, 155, 176, 0.16)", color: "#8e9bb0" },
   };
+  const NEUTRAL_CHIP = { bg: "rgba(142, 155, 176, 0.16)", color: "#8e9bb0" };
 
   function formatMins(mins) {
     if (!mins) return "";
@@ -813,8 +772,7 @@ function CustomersPanel({ business, onStatusChange }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <h2 style={{ margin: 0 }}>Customers</h2>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <input
           placeholder="Search by name, email or phone…"
           value={search}
@@ -880,13 +838,13 @@ function CustomersPanel({ business, onStatusChange }) {
                   <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>bookings</div>
                 </div>
                 <div style={{ textAlign: "center", minWidth: 64 }}>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#10b981" }}>
+                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--good)" }}>
                     {totalSpentCents > 0 ? `$${(totalSpentCents / 100).toFixed(2)}` : "$0"}
                   </div>
                   <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>total spent</div>
                 </div>
                 <div style={{ textAlign: "center", minWidth: 64 }}>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: unpaidCount > 0 ? "#ef4444" : "#6b7280" }}>
+                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: unpaidCount > 0 ? "var(--bad)" : "var(--ink-2)" }}>
                     {unpaidCount}
                   </div>
                   <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>unpaid</div>
@@ -905,8 +863,8 @@ function CustomersPanel({ business, onStatusChange }) {
                   <span style={{
                     display: "inline-block", marginTop: 4, padding: "2px 8px",
                     borderRadius: 4, fontSize: "0.72rem", fontWeight: 600,
-                    background: STATUS_COLOR[lastBooking.status]?.bg || "#f3f4f6",
-                    color: STATUS_COLOR[lastBooking.status]?.color || "#374151",
+                    background: STATUS_COLOR[lastBooking.status]?.bg || NEUTRAL_CHIP.bg,
+                    color: STATUS_COLOR[lastBooking.status]?.color || NEUTRAL_CHIP.color,
                   }}>{lastBooking.status}</span>
                 </div>
               )}
@@ -923,7 +881,7 @@ function CustomersPanel({ business, onStatusChange }) {
                 {bookings.map((b) => {
                   const paid = b.payment?.status === "PAID";
                   const payFailed = b.payment?.status === "FAILED";
-                  const statusStyle = STATUS_COLOR[b.status] || { bg: "#f3f4f6", color: "#374151" };
+                  const statusStyle = STATUS_COLOR[b.status] || NEUTRAL_CHIP;
 
                   return (
                     <div key={b.id} style={{
@@ -962,8 +920,8 @@ function CustomersPanel({ business, onStatusChange }) {
                         <div style={{
                           display: "inline-block", padding: "4px 10px", borderRadius: 6,
                           fontWeight: 700, fontSize: "0.78rem",
-                          background: paid ? "#dcfce7" : payFailed ? "#fee2e2" : "#fef9c3",
-                          color: paid ? "#166534" : payFailed ? "#991b1b" : "#854d0e",
+                          background: paid ? "rgba(45, 207, 143, 0.16)" : payFailed ? "rgba(255, 107, 107, 0.16)" : "rgba(251, 133, 0, 0.16)",
+                          color: paid ? "#3ddc8b" : payFailed ? "#ff8b8b" : "#ffa62b",
                         }}>
                           {paid ? "✓ PAID" : payFailed ? "✗ FAILED" : "⏳ UNPAID"}
                         </div>
@@ -1056,7 +1014,6 @@ function BookingsPanel({ business }) {
 
   return (
     <div>
-      <h2>Bookings for {business.name}</h2>
       {error && <div className="alert alert-error">{error}</div>}
       {bookings.length === 0 && <p>No bookings yet.</p>}
       <table className="data-table">
@@ -1109,7 +1066,6 @@ function ServicesPanel({ business, onChange }) {
 
   return (
     <div>
-      <h2>Services</h2>
       {error && <div className="alert alert-error">{error}</div>}
       <div className="grid grid-2">
         {services.map((s) => (
@@ -1291,7 +1247,6 @@ function ReviewsPanel({ business }) {
 
   return (
     <div>
-      <h2>Reviews</h2>
       {reviews.length === 0 && <p>No reviews yet.</p>}
       {reviews.map((r) => (
         <div className="card" key={r.id} style={{ marginBottom: 12 }}>
@@ -1315,7 +1270,7 @@ function ReviewsPanel({ business }) {
   );
 }
 
-function SettingsPanel({ business, onChange }) {
+function ListingDetailsPanel({ business, onChange }) {
   const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "", latitude: business.latitude, longitude: business.longitude });
   const [attrs, setAttrs] = useState(business.attributes || {});
   const [saved, setSaved] = useState(false);

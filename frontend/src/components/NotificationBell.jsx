@@ -1,17 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import Icon from "./Icon.jsx";
 import { readToken } from "../utils/tokenStore";
 
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const popRef = useRef(null);
 
   useEffect(() => {
     loadUnreadCount();
     const interval = setInterval(loadUnreadCount, 30000); // Poll every 30s
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!showDropdown) return undefined;
+    function onDown(e) {
+      if (!popRef.current?.contains(e.target)) setShowDropdown(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [showDropdown]);
 
   async function loadUnreadCount() {
     if (!readToken()) return;
@@ -45,96 +56,38 @@ export default function NotificationBell() {
   }
 
   function toggleDropdown() {
-    if (!showDropdown) {
-      loadNotifications();
-    }
+    if (!showDropdown) loadNotifications();
     setShowDropdown(!showDropdown);
   }
 
   return (
-    <div style={{ position: "relative" }}>
+    <div className="dash-bell" ref={popRef}>
       <button
-        className="linklike"
+        type="button"
+        className="dash-icon-btn"
         onClick={toggleDropdown}
-        style={{ position: "relative", fontSize: "1.2rem" }}
+        aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`}
       >
-        🔔
-        {unreadCount > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: -4,
-              right: -8,
-              background: "#e53e3e",
-              color: "white",
-              borderRadius: "50%",
-              width: 18,
-              height: 18,
-              fontSize: "0.7rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
+        <Icon name="bell" size={16} />
+        {unreadCount > 0 && <span className="dash-bell-badge">{unreadCount > 9 ? "9+" : unreadCount}</span>}
       </button>
 
       {showDropdown && (
-        <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            right: 0,
-            marginTop: 8,
-            width: 320,
-            maxHeight: 400,
-            overflowY: "auto",
-            background: "white",
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              padding: "12px 16px",
-              borderBottom: "1px solid #eee",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
+        <div className="notif-pop">
+          <div className="notif-pop-head">
             <strong>Notifications</strong>
             {unreadCount > 0 && (
-              <button className="linklike" onClick={markAllRead} style={{ fontSize: "0.85rem" }}>
-                Mark all read
-              </button>
+              <button type="button" className="linklike" onClick={markAllRead}>Mark all read</button>
             )}
           </div>
 
-          {notifications.length === 0 && (
-            <div style={{ padding: 16, textAlign: "center", color: "#666" }}>
-              No notifications
-            </div>
-          )}
+          {notifications.length === 0 && <div className="notif-empty">No notifications</div>}
 
           {notifications.map((n) => (
-            <div
-              key={n.id}
-              style={{
-                padding: 16,
-                borderBottom: "1px solid #eee",
-                background: n.readAt ? "white" : "#f0f8ff",
-              }}
-            >
-              {n.subject && <div style={{ fontWeight: 600, marginBottom: 4 }}>{n.subject}</div>}
-              <div style={{ fontSize: "0.9rem", color: "#333" }}>{n.message}</div>
-              <div style={{ fontSize: "0.75rem", color: "#999", marginTop: 4 }}>
-                {new Date(n.createdAt).toLocaleString()}
-              </div>
+            <div key={n.id} className={`notif-item${n.readAt ? "" : " notif-item--unread"}`}>
+              {n.subject && <strong>{n.subject}</strong>}
+              <p>{n.message}</p>
+              <time dateTime={n.createdAt}>{new Date(n.createdAt).toLocaleString()}</time>
             </div>
           ))}
         </div>

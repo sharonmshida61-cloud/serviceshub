@@ -52,6 +52,15 @@ router.get("/services", async (req, res) => {
   res.json(list);
 });
 
+router.get("/bookings/series", async (req, res) => {
+  // /bookings is capped at the latest 100; the chart needs every date to bucket by week/month/year.
+  const rows = await prisma.booking.findMany({
+    orderBy: { createdAt: "asc" },
+    select: { createdAt: true, status: true },
+  });
+  res.json(rows);
+});
+
 router.get("/bookings", async (req, res) => {
   const list = await prisma.booking.findMany({
     orderBy: { createdAt: "desc" },

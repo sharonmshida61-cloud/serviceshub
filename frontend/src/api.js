@@ -135,6 +135,7 @@ export const api = {
   adminBusinesses: () => request("/admin/businesses"),
   adminServices: () => request("/admin/services"),
   adminBookings: () => request("/admin/bookings"),
+  adminBookingSeries: () => request("/admin/bookings/series"),
   adminReviews: () => request("/admin/reviews"),
   pendingBusinesses: () => request("/admin/businesses/pending"),
   setBusinessStatus: (id, status) => request(`/admin/businesses/${id}/status`, { method: "PATCH", body: { status } }),

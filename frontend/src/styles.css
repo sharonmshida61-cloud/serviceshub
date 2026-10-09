@@ -16,6 +16,10 @@
   --route: #0969da;
   --good: #1a7f37;
   --bad: #da3633;
+  /* Panels and cards paint with --surface rather than a hard-coded white, so the
+     dashboard shell can flip them dark without touching the public pages. */
+  --surface: #ffffff;
+  --surface-2: #f6f8fb;
   --radius: 12px;
   --radius-lg: 16px;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
@@ -401,7 +405,7 @@ button, input, select, textarea {
 /* ---------- Cards ---------- */
 
 .card {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -478,7 +482,7 @@ button, input, select, textarea {
   justify-content: center;
   gap: 10px;
   padding: 20px 16px;
-  background: white;
+  background: var(--surface);
   border: 2px solid var(--line);
   border-radius: var(--radius-lg);
   color: var(--ink);
@@ -589,7 +593,7 @@ button, input, select, textarea {
   padding: 12px 14px;
   border: 1.5px solid var(--line);
   border-radius: 8px;
-  background: white;
+  background: var(--surface);
   color: var(--ink);
   font-size: 0.95rem;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
@@ -1195,7 +1199,7 @@ table.data-table tr:hover {
   border-radius: 10px;
   border: 1.5px solid var(--line);
   font-size: 0.92rem;
-  background: white;
+  background: var(--surface);
   color: var(--ink);
   cursor: pointer;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
@@ -1223,7 +1227,7 @@ table.data-table tr:hover {
   border-radius: 10px;
   border: 1.5px solid var(--line);
   font-size: 0.92rem;
-  background: white;
+  background: var(--surface);
   color: var(--ink);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
@@ -1274,7 +1278,7 @@ table.data-table tr:hover {
   padding: 11px 34px 11px 38px;
   border-radius: 10px;
   border: 1.5px solid var(--line);
-  background: #fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b7280' d='M6 8 0 2 1.4.6 6 5.2l4.6-4.6L12 2z'/%3E%3C/svg%3E") no-repeat right 13px center;
+  background: var(--surface) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%236b7280' d='M6 8 0 2 1.4.6 6 5.2l4.6-4.6L12 2z'/%3E%3C/svg%3E") no-repeat right 13px center;
   color: var(--ink);
   font-family: inherit;
   font-size: 0.92rem;
@@ -1337,7 +1341,7 @@ table.data-table tr:hover {
   max-height: min(86vh, 760px);
   overflow: hidden;
   border-radius: var(--radius-lg);
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--shadow-xl);
   animation: qv-rise 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
 }
@@ -1518,7 +1522,7 @@ table.data-table tr:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: white;
+  background: var(--surface);
   border: 1.5px solid var(--amber);
   color: #7a4500;
   font-size: 0.82rem;
@@ -1560,7 +1564,7 @@ table.data-table tr:hover {
   border-radius: 10px;
   border: 1.5px solid var(--line);
   font-size: 0.92rem;
-  background: white;
+  background: var(--surface);
   color: var(--ink);
   cursor: pointer;
   transition: border-color var(--transition-base);
@@ -2009,30 +2013,7 @@ table.data-table tr:hover {
   }
 }
 
-/* ── Customer dashboard (mockup v2) ── */
-.cust-grid {
-  display: grid;
-  grid-template-columns: 1.9fr 1.05fr 0.95fr;
-  gap: 18px;
-  align-items: start;
-}
-
-.cust-main .dash-hero { margin-bottom: 18px; }
-
-/* Grid items default to min-width:auto, so one wide child blows out the column */
-.cust-main,
-.cust-side { min-width: 0; }
-
-.dash-hero--photo {
-  background:
-    linear-gradient(rgba(30, 27, 75, 0.55), rgba(46, 42, 114, 0.75)),
-    url("https://images.unsplash.com/photo-1506905714762-4a748f908146?w=1400&q=80") center / cover no-repeat;
-  min-height: 210px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
+/* ── Customer dashboard ── */
 .cat-grid.cat-grid-4 {
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
 }
@@ -2059,8 +2040,6 @@ table.data-table tr:hover {
   overflow: hidden;
 }
 
-.rv-thumb--lg { width: 56px; height: 56px; border-radius: 12px; }
-
 .rv-name { font-weight: 700; font-size: 0.9rem; }
 .rv-name a { color: var(--ink); text-decoration: none; }
 .rv-name a:hover { color: var(--dash-active); }
@@ -2068,32 +2047,6 @@ table.data-table tr:hover {
 .rv-rating { font-size: 0.8rem; font-weight: 700; color: #d97706; white-space: nowrap; }
 
 .rv-heart { color: #ef4444; text-decoration: none; font-size: 1rem; }
-
-.booking-feature {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.promo-card {
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-
-.promo-card .promo-img {
-  width: 100%;
-  height: 130px;
-  object-fit: cover;
-  display: block;
-}
-
-.promo-body { padding: 16px 18px 18px; }
-
-.promo-title { font-family: "Fraunces", serif; font-weight: 800; font-size: 1.02rem; line-height: 1.35; margin-bottom: 6px; }
-.promo-body p { font-size: 0.85rem; color: var(--ink-2); margin: 0 0 12px; }
 
 .profile-avatar {
   width: 56px;
@@ -2395,42 +2348,87 @@ table.data-table tr:hover {
   .qa-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
-@media (max-width: 1250px) {
-  .cust-grid { grid-template-columns: 1.6fr 1fr; }
-  .cust-side { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
-}
-
 @media (max-width: 900px) {
-  .cust-grid { grid-template-columns: 1fr; }
-  .cust-side { grid-column: auto; grid-template-columns: 1fr; }
   .cat-grid.cat-grid-4 { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* ============================================================================
-   DASHBOARD SHELL — role-colored sidebar layout (admin / owner / customer)
+   DASHBOARD SHELL — dark operations console (admin / owner / customer)
 ============================================================================ */
 
 .dash-shell {
+  --dash-bg: #0b0f16;
+  --dash-side: #0d1219;
+  --dash-card: #141a24;
+  --dash-card-2: #1a212c;
+  --dash-edge: #232c39;
+  --dash-fg: #e8edf5;
+  --dash-fg-2: #8e9bb0;
+  --dash-active: var(--amber);
   display: flex;
   min-height: 100vh;
-  background: #eef1f6;
+  background: var(--dash-bg);
+  color: var(--dash-fg);
+  /* The signed-in area inverts the shared tokens: tables, fields, pills and
+     alerts all read these, so public pages outside the shell stay light. */
+  --paper: var(--dash-card);
+  --paper-2: var(--dash-card-2);
+  --surface: var(--dash-card);
+  --surface-2: var(--dash-card-2);
+  --ink: var(--dash-fg);
+  --ink-2: var(--dash-fg-2);
+  --line: var(--dash-edge);
+  --good: #3ddc8b;
+  --bad: #ff6b6b;
+  --route: #58a6ff;
+  /* Panels below use var(--x, <light fallback>) tints that only exist here, so
+     they invert with the shell instead of painting pale blocks on dark. */
+  --danger-bg: rgba(255, 107, 107, 0.1);
+  --amber-light: rgba(251, 133, 0, 0.14);
+  --primary-light: rgba(88, 166, 255, 0.12);
+  --ink-3: #6f7d93;
 }
 
-.dash-admin    { --dash-side: #16295f; --dash-active: #2563eb; }
-.dash-owner    { --dash-side: #0b4436; --dash-active: #0f9d6c; }
-.dash-customer { --dash-side: #2e2a72; --dash-active: #5b5bd6; }
+/* Each role keeps its own accent, but the shell chrome stays the same dark. */
+.dash-admin    { --dash-role: #4c8dff; --dash-role-soft: rgba(76, 141, 255, 0.14); }
+.dash-owner    { --dash-role: #2ecf8f; --dash-role-soft: rgba(46, 207, 143, 0.14); }
+.dash-customer { --dash-role: #9d8cff; --dash-role-soft: rgba(157, 140, 255, 0.16); }
+
+/* The console reads as a UI, not editorial copy, so it drops the serif display
+   face the public pages use. */
+.dash-shell h1,
+.dash-shell h2,
+.dash-shell h3,
+.dash-shell h4 { font-family: inherit; letter-spacing: -0.01em; }
+
+/* Bare form controls inside the shell (panel filters, inline editors) have no
+   background of their own, so they would paint white on dark. :where() keeps
+   this at shell specificity only, so component rules — icon padding, the
+   select chevron — still win against it. */
+.dash-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea) {
+  background-color: #0f141c;
+  border: 1px solid var(--dash-edge);
+  color: var(--dash-fg);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.dash-shell option { background: #141a24; color: var(--dash-fg); }
+.dash-shell input::placeholder,
+.dash-shell textarea::placeholder { color: #67748a; }
 
 .dash-sidebar {
-  width: 250px;
+  width: 252px;
   flex-shrink: 0;
   background: var(--dash-side);
-  color: rgba(255, 255, 255, 0.75);
+  border-right: 1px solid var(--dash-edge);
+  color: var(--dash-fg-2);
   display: flex;
   flex-direction: column;
   position: sticky;
   top: 0;
   height: 100vh;
-  padding: 18px 12px;
+  padding: 14px 12px 10px;
+  overflow-y: auto;
 }
 
 .dash-brand {
@@ -2439,45 +2437,68 @@ table.data-table tr:hover {
   gap: 10px;
   font-family: "Fraunces", serif;
   font-weight: 800;
-  font-size: 1.25rem;
-  color: white;
-  padding: 4px 12px 18px;
+  font-size: 1.2rem;
+  color: var(--dash-fg);
+  padding: 4px 10px 14px;
 }
-.dash-brand:hover { color: white; text-decoration: none; }
+.dash-brand:hover { color: var(--dash-fg); text-decoration: none; }
+
+/* Section headings above each run of nav items, as in the mockup. */
+.dash-group {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #5f6b7f;
+  padding: 14px 12px 6px;
+}
 
 .dash-menu {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  overflow-y: auto;
 }
 
 .dash-menu button {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 11px;
   width: 100%;
   text-align: left;
   background: none;
   border: none;
   cursor: pointer;
-  color: inherit;
-  font-size: 0.92rem;
+  color: var(--dash-fg-2);
+  font-size: 0.86rem;
   font-weight: 500;
-  padding: 11px 12px;
-  border-radius: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
   transition: background var(--transition-fast), color var(--transition-fast);
 }
 
-.dash-menu button:hover { background: rgba(255, 255, 255, 0.08); color: white; }
+.dash-menu button:hover { background: var(--dash-card-2); color: var(--dash-fg); }
 
 .dash-menu button.active {
-  background: var(--dash-active);
-  color: white;
+  background: var(--dash-role-soft);
+  color: var(--dash-role);
   font-weight: 600;
 }
 
-.dash-side-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.14); }
+.dash-menu button.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--dash-role);
+}
+
+.dash-side-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--dash-edge); }
+
+.dash-version { font-size: 0.7rem; color: #5f6b7f; padding: 10px 4px 2px; }
 
 .dash-user-card { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
 
@@ -2485,8 +2506,9 @@ table.data-table tr:hover {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--dash-active);
-  color: white;
+  background: var(--dash-card-2);
+  border: 1px solid var(--dash-edge);
+  color: var(--dash-fg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2496,38 +2518,68 @@ table.data-table tr:hover {
 }
 
 .dash-user-meta { display: flex; flex-direction: column; min-width: 0; }
-.dash-user-name { font-size: 0.88rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dash-user-role { font-size: 0.72rem; color: var(--ink-2); text-transform: capitalize; }
-.dash-side-footer .dash-user-name { color: white; }
-.dash-side-footer .dash-user-role { color: rgba(255, 255, 255, 0.6); }
+.dash-user-name { font-size: 0.88rem; font-weight: 600; color: var(--dash-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-user-role { font-size: 0.72rem; color: var(--dash-fg-2); text-transform: capitalize; }
+
+/* Hamburger collapse: the rail keeps the icons, drops the labels. */
+.dash-shell.dash-collapsed .dash-sidebar { width: 72px; padding: 14px 8px 10px; }
+.dash-collapsed .dash-brand span,
+.dash-collapsed .dash-group,
+.dash-collapsed .dash-menu button span,
+.dash-collapsed .dash-user-meta,
+.dash-collapsed .dash-version { display: none; }
+.dash-collapsed .dash-menu button { justify-content: center; padding: 10px 0; }
+.dash-collapsed .dash-brand { justify-content: center; padding: 4px 0 14px; }
+.dash-collapsed .dash-user-card { justify-content: center; }
+.dash-collapsed .dash-side-footer { padding-top: 12px; }
 
 .dash-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 .dash-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  background: white;
-  border-bottom: 1px solid var(--line);
-  padding: 12px 28px;
+  gap: 14px;
+  background: rgba(11, 15, 22, 0.88);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--dash-edge);
+  padding: 10px 22px;
   position: sticky;
   top: 0;
   z-index: 20;
 }
 
-.dash-title { font-size: 1.25rem; margin: 0; white-space: nowrap; }
+/* Sidebar toggle, tools cluster and the profile chip all share one button look */
+.dash-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--dash-edge);
+  background: var(--dash-card);
+  color: var(--dash-fg-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+.dash-icon-btn:hover { color: var(--dash-fg); border-color: #33404f; }
 
-.dash-header-right { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+.dash-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; margin: 0; color: var(--dash-fg); }
+
+.dash-header-right { display: flex; align-items: center; gap: 12px; margin-left: auto; min-width: 0; }
 
 .dash-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: var(--paper-2);
-  border-radius: 999px;
-  padding: 8px 16px;
-  color: var(--ink-2);
+  gap: 9px;
+  flex: 0 1 420px;
+  background: #0f141c;
+  border: 1px solid var(--dash-edge);
+  border-radius: 9px;
+  padding: 8px 10px 8px 12px;
+  color: var(--dash-fg-2);
 }
 
 .dash-search input {
@@ -2535,9 +2587,90 @@ table.data-table tr:hover {
   background: none;
   outline: none;
   font-size: 0.88rem;
-  width: 220px;
-  color: var(--ink);
+  width: 100%;
+  min-width: 0;
+  color: var(--dash-fg);
 }
+
+.dash-kbd {
+  border: 1px solid var(--dash-edge);
+  border-radius: 5px;
+  background: #141a24;
+  padding: 1px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--dash-fg-2);
+  white-space: nowrap;
+}
+
+/* "09 Oct 2026, 15:51 GMT+3" in the mockup — the operator's local clock */
+.dash-clock { font-size: 0.78rem; color: var(--dash-fg-2); white-space: nowrap; }
+
+.dash-tools { display: flex; align-items: center; gap: 8px; }
+
+/* Bell + unread badge */
+.dash-bell { position: relative; }
+.dash-bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #e5484d;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--dash-card);
+  border: 1px solid var(--dash-edge);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  z-index: 60;
+  color: var(--dash-fg);
+}
+.notif-pop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--dash-edge);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.notif-pop-head .linklike { font-size: 0.78rem; font-weight: 600; }
+.notif-empty { padding: 22px 14px; text-align: center; font-size: 0.84rem; color: var(--dash-fg-2); }
+.notif-item { padding: 12px 14px; border-bottom: 1px solid var(--dash-edge); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item--unread { background: rgba(88, 166, 255, 0.07); }
+.notif-item strong { display: block; font-size: 0.84rem; margin-bottom: 3px; }
+.notif-item p { margin: 0; font-size: 0.8rem; color: var(--dash-fg-2); }
+.notif-item time { display: block; margin-top: 5px; font-size: 0.7rem; color: #5f6b7f; }
+
+.dash-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 4px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.dash-profile .dash-avatar { width: 34px; height: 34px; }
+.dash-profile .dash-user-name { text-align: left; }
 
 .dash-signout {
   display: inline-flex;
@@ -2545,40 +2678,66 @@ table.data-table tr:hover {
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
+  border-radius: 9px;
+  border: 1px solid var(--dash-edge);
   background: none;
-  color: var(--ink-2);
+  color: var(--dash-fg-2);
   cursor: pointer;
 }
-.dash-signout:hover { background: var(--paper-2); color: var(--ink); }
+.dash-signout:hover { background: var(--dash-card-2); color: var(--dash-fg); }
 
-.dash-content { padding: 28px; max-width: 1240px; width: 100%; margin: 0 auto; }
+.dash-content { padding: 24px 26px 40px; max-width: 1400px; width: 100%; margin: 0 auto; }
+
+/* Page heading: title + subtitle on the left, the scope chip on the right */
+.dash-pagehead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.dash-pagehead > * { min-width: 0; }
+.dash-subtitle { margin: 5px 0 0; font-size: 0.9rem; color: var(--dash-fg-2); }
+
+.dash-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 9px;
+  background: var(--dash-card);
+  padding: 8px 13px;
+  font-size: 0.78rem;
+  color: var(--dash-fg-2);
+  white-space: nowrap;
+}
+.dash-context strong { color: var(--dash-fg); font-weight: 700; }
+.dash-context svg { color: var(--amber); flex-shrink: 0; }
 
 /* ---------- Stat cards ---------- */
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
-  gap: 18px;
-  margin-bottom: 26px;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .stat-card {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-  padding: 18px 20px;
+  border-radius: 12px;
+  box-shadow: none;
+  padding: 15px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2592,43 +2751,62 @@ table.data-table tr:hover {
 .tint-red    { background: rgba(239, 68, 68, 0.12);  color: #dc2626; }
 .tint-teal   { background: rgba(13, 148, 136, 0.12); color: #0d9488; }
 
-/* Admin mockup: fully tinted stat cards with solid icon circles */
-.stat-card.sc-blue   { background: #e8f0fe; border-color: #d5e3fb; }
-.stat-card.sc-green  { background: #e6f8f0; border-color: #d0f0e2; }
-.stat-card.sc-purple { background: #f1ecfd; border-color: #e3d9fa; }
-.stat-card.sc-amber  { background: #fef3dd; border-color: #fbe7c0; }
-.stat-card.sc-teal   { background: #defaf3; border-color: #c4f3e8; }
-.stat-card.sc-red    { background: #fdeaea; border-color: #f9d4d4; }
+/* Mockup: one dark card, colour carried by the icon square and the caption. */
+.dash-shell .stat-card.sc-blue,
+.dash-shell .stat-card.sc-green,
+.dash-shell .stat-card.sc-purple,
+.dash-shell .stat-card.sc-amber,
+.dash-shell .stat-card.sc-teal,
+.dash-shell .stat-card.sc-red { background: var(--dash-card); border-color: var(--dash-edge); }
 
 .stat-icon.solid-blue,
 .stat-icon.solid-green,
 .stat-icon.solid-purple,
 .stat-icon.solid-amber,
 .stat-icon.solid-teal,
-.stat-icon.solid-red { border-radius: 50%; color: #fff; }
-.stat-icon.solid-blue   { background: #2563eb; }
-.stat-icon.solid-green  { background: #10b981; }
-.stat-icon.solid-purple { background: #8b5cf6; }
-.stat-icon.solid-amber  { background: #f59e0b; }
-.stat-icon.solid-teal   { background: #14b8a6; }
-.stat-icon.solid-red    { background: #ef4444; }
+.stat-icon.solid-red { border-radius: 10px; }
+.stat-icon.solid-blue   { background: #2563eb; color: #fff; }
+.stat-icon.solid-green  { background: #10b981; color: #fff; }
+.stat-icon.solid-purple { background: #8b5cf6; color: #fff; }
+.stat-icon.solid-amber  { background: #f59e0b; color: #fff; }
+.stat-icon.solid-teal   { background: #14b8a6; color: #fff; }
+.stat-icon.solid-red    { background: #ef4444; color: #fff; }
+
+/* On dark the mockup uses translucent squares, not solid ones. */
+.dash-shell .stat-icon.solid-blue   { background: rgba(88, 166, 255, 0.15);  color: #79b8ff; border: 1px solid rgba(88, 166, 255, 0.28); }
+.dash-shell .stat-icon.solid-green  { background: rgba(45, 207, 143, 0.15);  color: #3ddc8b; border: 1px solid rgba(45, 207, 143, 0.28); }
+.dash-shell .stat-icon.solid-purple { background: rgba(157, 140, 255, 0.16); color: #b5a8ff; border: 1px solid rgba(157, 140, 255, 0.3); }
+.dash-shell .stat-icon.solid-amber  { background: rgba(251, 133, 0, 0.16);   color: #ffa62b; border: 1px solid rgba(251, 133, 0, 0.32); }
+.dash-shell .stat-icon.solid-teal   { background: rgba(32, 201, 191, 0.15);  color: #4fd8d1; border: 1px solid rgba(32, 201, 191, 0.28); }
+.dash-shell .stat-icon.solid-red    { background: rgba(255, 107, 107, 0.15); color: #ff8b8b; border: 1px solid rgba(255, 107, 107, 0.3); }
+
+.stat-text { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; flex: 1; }
+.stat-label { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); }
+.stat-value { font-size: 1.5rem; font-weight: 800; font-family: inherit; color: var(--ink); line-height: 1.2; overflow-wrap: anywhere; }
+
+/* Caption under the value — "New bookings", "Outstanding", … */
+.stat-foot { font-size: 0.72rem; font-weight: 600; color: var(--dash-fg-2, var(--ink-2)); }
+.foot-blue  { color: #79b8ff; }
+.foot-green { color: #3ddc8b; }
+.foot-purple { color: #b5a8ff; }
+.foot-amber { color: #ffa62b; }
+.foot-teal  { color: #4fd8d1; }
+.foot-red   { color: #ff8b8b; }
 
 .stat-trend { font-size: 0.72rem; font-weight: 600; margin-top: 2px; }
 .trend-up   { color: #059669; }
 .trend-down { color: #dc2626; }
-
-.stat-text { display: flex; flex-direction: column; min-width: 0; }
-.stat-label { font-size: 0.78rem; font-weight: 600; color: var(--ink-2); }
-.stat-value { font-size: 1.45rem; font-weight: 800; font-family: "Fraunces", serif; color: var(--ink); line-height: 1.2; }
+.dash-shell .trend-up   { color: #3ddc8b; }
+.dash-shell .trend-down { color: #ff8b8b; }
 
 /* ---------- Panels ---------- */
 
 .panel {
-  background: white;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 22px;
+  border-radius: 12px;
+  box-shadow: none;
+  margin-bottom: 18px;
   overflow: hidden;
 }
 
@@ -2637,7 +2815,7 @@ table.data-table tr:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2645,14 +2823,199 @@ table.data-table tr:hover {
    row past a phone viewport and get clipped by the panel. */
 .panel-head > * { min-width: 0; }
 
-.panel-head h3 { margin: 0; font-size: 1rem; overflow-wrap: break-word; }
+/* Mockup titles read "icon + heading" inside the card header. */
+.panel-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  overflow-wrap: break-word;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.panel-head h3 svg { color: var(--ink-2); flex-shrink: 0; }
 .panel-body { padding: 8px 20px 16px; }
 .panel-body.flush { padding: 0; }
+/* A flush panel holds its table edge-to-edge, so the table drops its own margin */
+.panel-body.flush table.data-table { margin: 0; }
 
 /* .panel clips overflow, so a wide table would lose columns entirely on phones */
 @media (max-width: 900px) {
   .panel-body.flush { overflow-x: auto; }
 }
+
+/* ---------- Chart + donut row ---------- */
+
+/* The mockup pairs a wide chart card with a narrow status card. */
+.dash-2col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+}
+.dash-2col > .panel { margin-bottom: 0; }
+@media (max-width: 1100px) {
+  .dash-2col { grid-template-columns: 1fr; }
+}
+
+/* Daily / Weekly / Monthly / Yearly / Custom range switch */
+.seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 9px;
+  background: #0f141c;
+  padding: 3px;
+  overflow-x: auto;
+}
+.seg button {
+  border: none;
+  background: none;
+  color: var(--dash-fg-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 5px 11px;
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.seg button:hover { color: var(--dash-fg); }
+.seg button.active { background: rgba(88, 166, 255, 0.16); color: #79b8ff; }
+
+.chart-body { padding: 6px 8px 0; }
+.chart-svg { display: block; width: 100%; height: 250px; overflow: visible; }
+.chart-grid { stroke: var(--dash-edge); stroke-width: 1; }
+.chart-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-area { stroke: none; }
+.chart-point { stroke: #0b0f16; stroke-width: 2; }
+
+.chart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 250px;
+  padding: 0 20px;
+  text-align: center;
+}
+.chart-empty svg { color: #3a4657; margin-bottom: 4px; }
+.chart-empty strong { font-size: 0.95rem; font-weight: 700; color: var(--dash-fg); }
+.chart-empty p { margin: 0; font-size: 0.82rem; color: var(--dash-fg-2); max-width: 340px; }
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 14px 0 4px;
+  font-size: 0.78rem;
+  color: var(--dash-fg-2);
+}
+.chart-legend span { display: inline-flex; align-items: center; gap: 7px; }
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.dot-blue { background: #58a6ff; }
+.dot-green { background: #3ddc8b; }
+.dot-purple { background: #b5a8ff; }
+.dot-amber { background: var(--amber); }
+.dot-teal { background: #4fd8d1; }
+.dot-red { background: #ff6b6b; }
+.dot-grey { background: #5f6b7f; }
+
+/* Donut with the total punched through the middle, plus a dotted legend */
+.donut-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 20px 8px 12px;
+}
+.donut { position: relative; width: 186px; height: 186px; flex-shrink: 0; }
+.donut svg { display: block; width: 100%; height: 100%; }
+.donut circle { fill: none; }
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+.donut-total { font-size: 1.55rem; font-weight: 800; color: var(--dash-fg); line-height: 1.1; }
+.donut-cap { font-size: 0.72rem; color: var(--dash-fg-2); }
+
+.donut-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-width: 160px;
+  max-width: 250px;
+}
+.donut-legend li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.82rem;
+  color: var(--dash-fg-2);
+}
+.donut-legend .legend-value {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--dash-fg);
+  font-variant-numeric: tabular-nums;
+}
+
+/* "View all" style action that sits in a panel head */
+.panel-head .linklike { font-size: 0.82rem; }
+.dash-shell .panel-head .linklike { color: var(--route); }
+
+.dash-shell .cat-tile { background: var(--dash-card-2); border-color: var(--dash-edge); }
+.dash-shell .cat-tile:hover { box-shadow: none; border-color: #33404f; }
+.dash-shell .rv-rating { color: #ffa62b; }
+.dash-shell .rv-heart { color: #ff8b8b; }
+
+/* Pale "highlighted state" washes from the public pages would read as sticky
+   notes on the near-black console, so the shell repaints them as amber glows. */
+.dash-shell .pill-pending { color: #ffa62b; }
+.dash-shell .card:hover { border-color: #33404f; }
+.dash-shell .category-chip:hover { box-shadow: none; }
+.dash-shell .category-chip.active {
+  background: linear-gradient(135deg, rgba(251, 133, 0, 0.2) 0%, rgba(251, 133, 0, 0.07) 100%);
+  box-shadow: none;
+}
+.dash-shell .browse-search-bar .search-select-wrap select.select-active {
+  background: rgba(251, 133, 0, 0.16);
+}
+.dash-shell .active-filters-row {
+  background: rgba(251, 133, 0, 0.09);
+  border-color: rgba(251, 133, 0, 0.28);
+}
+.dash-shell .filter-badge { color: #ffa62b; }
+.dash-shell .attr-chip { background-image: none; background-color: var(--dash-card-2); border-color: var(--dash-edge); }
+.dash-shell .attr-chip:hover { background-image: none; background-color: #202938; }
+.dash-shell .biz-card-skeleton {
+  background-image: linear-gradient(90deg, var(--dash-card-2) 25%, #232c39 50%, var(--dash-card-2) 75%);
+}
+.dash-shell .loc-field select {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a8b3c1' d='M6 8 0 2 1.4.6 6 5.2l4.6-4.6L12 2z'/%3E%3C/svg%3E");
+}
+.dash-shell .qv-services em { color: #ffa62b; }
 
 /* Text-style action — used on both anchors and buttons in panel heads */
 .linklike {
@@ -2705,37 +3068,6 @@ table.data-table tr:hover {
 
 .activity-title { font-size: 0.88rem; font-weight: 600; color: var(--ink); }
 .activity-sub { font-size: 0.78rem; color: var(--ink-2); }
-
-/* ---------- Welcome hero (customer) ---------- */
-
-.dash-hero {
-  background: linear-gradient(120deg, var(--dash-side) 0%, var(--dash-active) 100%);
-  border-radius: 16px;
-  color: white;
-  padding: 34px 36px;
-  margin-bottom: 26px;
-}
-
-.dash-hero h2 { color: white; font-size: 1.6rem; margin-bottom: 6px; }
-.dash-hero p { color: rgba(255, 255, 255, 0.85); margin-bottom: 20px; }
-
-.dash-hero-search {
-  display: flex;
-  gap: 10px;
-  background: white;
-  border-radius: 12px;
-  padding: 6px;
-  max-width: 560px;
-}
-
-.dash-hero-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  padding: 8px 12px;
-  font-size: 0.92rem;
-}
 
 /* ---------- Category tiles ---------- */
 
@@ -2794,26 +3126,6 @@ table.data-table tr:hover {
   }
 }
 
-/* ---------- Quick links (customer) ---------- */
-
-.quick-link {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 10px 2px;
-  border-bottom: 1px solid var(--paper-2);
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--ink);
-  text-align: left;
-}
-.quick-link:last-child { border-bottom: none; }
-.quick-link:hover { color: var(--dash-active); }
-
 /* ---------- Mini bar chart (owner earnings) ---------- */
 
 .bars {
@@ -2853,7 +3165,7 @@ table.data-table tr:hover {
 .loc-picker {
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: white;
+  background: var(--surface);
   padding: 14px;
   margin: 6px 0 4px;
 }
@@ -2976,12 +3288,13 @@ table.data-table tr:hover {
     right: 0;
     bottom: 0;
     z-index: 55;
-    background: white;
+    background: var(--dash-side);
+    border-top: 1px solid var(--dash-edge);
     border-radius: 18px 18px 0 0;
     padding: 14px 14px calc(18px + env(safe-area-inset-bottom));
     max-height: 70vh;
     overflow-y: auto;
-    box-shadow: 0 -12px 32px rgba(15, 23, 42, 0.22);
+    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55);
   }
   .dash-drawer-head {
     display: flex;
@@ -2989,10 +3302,10 @@ table.data-table tr:hover {
     justify-content: space-between;
     font-weight: 700;
     font-size: 1rem;
-    color: var(--ink);
+    color: var(--dash-fg);
     padding: 2px 6px 12px;
   }
-  .dash-drawer-head button { background: none; border: none; font-size: 1rem; color: var(--ink-2); cursor: pointer; }
+  .dash-drawer-head button { background: none; border: none; font-size: 1rem; color: var(--dash-fg-2); cursor: pointer; }
   .dash-drawer-panel button {
     display: flex;
     align-items: center;
@@ -3001,18 +3314,31 @@ table.data-table tr:hover {
     text-align: left;
     background: none;
     border: none;
-    color: var(--ink);
+    color: var(--dash-fg);
     font-size: 0.95rem;
     font-weight: 500;
     padding: 13px 12px;
     border-radius: 10px;
     cursor: pointer;
   }
-  .dash-drawer-panel button:hover { background: var(--paper-2); }
-  .dash-drawer-panel button.active { background: var(--dash-active); color: white; }
+  .dash-drawer-panel button:hover { background: var(--dash-card-2); }
+  .dash-drawer-panel button.active { background: var(--dash-role-soft); color: var(--dash-role); }
   .dash-drawer-panel .dash-drawer-head button { width: auto; padding: 4px; }
+  .dash-drawer-group {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #5f6b7f;
+    padding: 12px 12px 4px;
+  }
+
+  /* The rail-collapse rules are desktop-only; the bottom bar spans the screen. */
+  .dash-shell.dash-collapsed .dash-sidebar { width: auto; padding: 0; }
 
   .dash-content { padding: 16px 14px calc(84px + env(safe-area-inset-bottom)); }
+  .dash-pagehead { margin-bottom: 16px; gap: 10px; }
+  .dash-context { display: none; }
 
   /* Panels clip overflow, so a wide table can't scroll out of one — make the
      cells compact enough to fit, and keep a scroll wrapper as the fallback. */
@@ -3020,13 +3346,15 @@ table.data-table tr:hover {
   table.data-table th, table.data-table td { padding: 9px 8px; }
   .table-scroll { overflow-x: auto; }
 
-  /* Header: fit title + search + bell + avatar on one phone-width row */
+  /* Header: fit search + bell + avatar on one phone-width row */
   .dash-header { padding: 10px 14px; gap: 10px; }
   .dash-title { font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; }
   .dash-header-right { gap: 8px; flex: 1; min-width: 0; }
   .dash-search { flex: 1; min-width: 0; padding: 7px 12px; }
   .dash-search input { width: 100%; min-width: 0; }
   .dash-user-meta { display: none; }
+  .dash-clock, .dash-kbd { display: none; }
+  .dash-tools { display: none; }
 }
 
 /* Smallest phones: the header's fixed-size controls plus the search field

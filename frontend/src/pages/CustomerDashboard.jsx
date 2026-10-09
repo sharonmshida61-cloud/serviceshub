@@ -1,49 +1,40 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarInput, StarDisplay } from "../components/StarRating.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
-import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
+import DashboardShell from "../components/DashboardShell.jsx";
+import Icon from "../components/Icon.jsx";
+import { buckets, ChartPanel, countByBucket, DonutPanel, SERIES, StatCard } from "../components/DashboardPanels.jsx";
 import { BrowsePanel } from "./Browse.jsx";
 import { SettingsPanel } from "./Settings.jsx";
 import { directionsUrl } from "../utils/geolocation.js";
 import { COUNTRIES } from "../utils/countries.js";
 
 const NAV = [
-  { key: "home", label: "Home", icon: "home" },
-  { key: "browse", label: "Find Services", icon: "search" },
-  { key: "favorites", label: "Favorites", icon: "heart" },
-  { key: "bookings", label: "My Bookings", icon: "calendar" },
-  { key: "reviews", label: "My Reviews", icon: "star" },
-  { key: "notifications", label: "Notifications", icon: "bell" },
-  { key: "profile", label: "Profile", icon: "users" },
-  { key: "settings", label: "Settings", icon: "settings" },
+  { key: "home", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Your bookings, saved providers and activity at a glance." },
+  { key: "browse", label: "Find Services", icon: "search", group: "Discover", subtitle: "Search and browse every provider near you." },
+  { key: "favorites", label: "Favorites", icon: "heart", subtitle: "Providers you have saved for later." },
+  { key: "bookings", label: "My Bookings", icon: "calendar", group: "Activity", subtitle: "Pay, cancel and review your requests." },
+  { key: "reviews", label: "My Reviews", icon: "star", subtitle: "Ratings you have left for providers." },
+  { key: "notifications", label: "Notifications", icon: "bell", group: "Account", subtitle: "Updates about your bookings." },
+  { key: "profile", label: "Profile", icon: "users", subtitle: "Your details and profile picture." },
+  { key: "settings", label: "Settings", icon: "settings", subtitle: "Password, language and preferences." },
 ];
 
 const POPULAR_CATEGORIES = [
-  { slug: "mechanics", name: "Transport", mdi: "car", color: "#2563eb", bg: "#e4edff" },
-  { slug: "massage-therapists", name: "Health", mdi: "medicine", color: "#8b5cf6", bg: "#f0e9ff" },
-  { slug: "hair-salons", name: "Beauty", mdi: "scissors", color: "#ec4899", bg: "#ffe9f4" },
-  { slug: "home-repair", name: "Repairs", mdi: "wrench", color: "#14b8a6", bg: "#ddf7f2" },
-  { slug: "food-drinks", name: "Food & Drinks", mdi: "silverware-fork-knife", color: "#f59e0b", bg: "#fdf1d9" },
-  { slug: "cleaning-services", name: "Home Services", mdi: "home-variant", color: "#3b82f6", bg: "#e4edff" },
-  { slug: "freelancers", name: "Technology", mdi: "laptop", color: "#6366f1", bg: "#e7e7ff" },
-  { slug: "tutors", name: "Education", mdi: "graduation-cap", color: "#10b981", bg: "#ddf7ea" },
+  { slug: "mechanics", name: "Transport", mdi: "car", color: "#6ea8ff" },
+  { slug: "massage-therapists", name: "Health", mdi: "medicine", color: "#b5a8ff" },
+  { slug: "hair-salons", name: "Beauty", mdi: "scissors", color: "#ff8fc7" },
+  { slug: "home-repair", name: "Repairs", mdi: "wrench", color: "#4fd8d1" },
+  { slug: "food-drinks", name: "Food & Drinks", mdi: "silverware-fork-knife", color: "#ffa62b" },
+  { slug: "cleaning-services", name: "Home Services", mdi: "home-variant", color: "#6ee7b7" },
+  { slug: "freelancers", name: "Technology", mdi: "laptop", color: "#a5b4fc" },
+  { slug: "tutors", name: "Education", mdi: "graduation-cap", color: "#3ddc8b" },
 ];
 
 const tileIcon = (c) => `https://api.iconify.design/mdi:${c.mdi}.svg?color=${encodeURIComponent(c.color)}&height=24`;
-
-const SECTION_TITLES = {
-  home: "Home",
-  browse: "Find Services",
-  bookings: "My Bookings",
-  favorites: "Favorites",
-  reviews: "My Reviews",
-  notifications: "Notifications",
-  profile: "Profile",
-  settings: "Settings",
-};
 
 export default function CustomerDashboard() {
   const { t } = useLanguage();
@@ -98,14 +89,9 @@ export default function CustomerDashboard() {
     } catch (e) { setError(e.message); }
   }
 
-  const upcoming = useMemo(() => {
-    const now = Date.now();
-    return bookings
-      .filter((b) => ["PENDING", "CONFIRMED"].includes(b.status) && new Date(b.scheduledAt).getTime() >= now)
-      .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt))[0];
-  }, [bookings]);
-
-  const firstName = user?.name?.split(" ")[0] || "there";
+  const memberSince = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString(undefined, { month: "short", year: "numeric" })
+    : "—";
 
   return (
     <DashboardShell
@@ -113,114 +99,14 @@ export default function CustomerDashboard() {
       navItems={NAV}
       active={section}
       onNav={handleNav}
-      title={SECTION_TITLES[section] || "Home"}
+      context={{ label: "Member since", value: memberSince, icon: "users" }}
       searchPlaceholder="Search services, businesses, or categories…"
       onSearch={(q) => openBrowse({ q })}
     >
       {error && <div className="alert alert-error">{error}</div>}
 
       {section === "home" && (
-        <div className="cust-grid">
-          <div className="cust-main">
-            <div className="dash-hero dash-hero--photo">
-              <h2>Welcome back, {firstName} 👋</h2>
-              <p>Find the best services near you, <strong>all in one place</strong>.</p>
-              <form
-                className="dash-hero-search"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const q = new FormData(e.target).get("q");
-                  openBrowse({ q: String(q || "").trim() });
-                }}
-              >
-                <input name="q" placeholder="Search services, businesses or categories…" />
-                <button className="btn btn-primary" style={{ background: "var(--dash-active)", border: "none" }}>Search</button>
-              </form>
-            </div>
-
-            <div className="panel">
-              <div className="panel-head">
-                <h3>Popular Categories</h3>
-                <button className="linklike" onClick={() => openBrowse()}>View All</button>
-              </div>
-              <div className="panel-body">
-                <div className="cat-grid cat-grid-4">
-                  {POPULAR_CATEGORIES.map((c) => (
-                    <button key={c.slug} type="button" onClick={() => openBrowse({ category: c.slug })} className="cat-tile">
-                      <span className="cat-tile-icon" style={{ background: c.bg }}>
-                        <img src={tileIcon(c)} alt="" width={24} height={24} />
-                      </span>
-                      <span className="cat-tile-label">{c.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="cust-mid">
-            <div className="panel">
-              <div className="panel-head">
-                <h3>Upcoming Booking</h3>
-                <button className="linklike" onClick={() => setSection("bookings")}>View All</button>
-              </div>
-              <div className="panel-body">
-                {!upcoming && <p style={{ margin: 0 }}>No upcoming bookings. <button className="linklike" onClick={() => openBrowse()}>Find a provider →</button></p>}
-                {upcoming && (
-                  <>
-                    <div className="booking-feature">
-                      <span className="rv-thumb rv-thumb--lg">
-                        <img src={`https://api.iconify.design/mdi:storefront.svg?color=%236366f1&height=28`} alt="" width={28} height={28} />
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="rv-name"><Link to={`/business/${upcoming.businessId}`}>{upcoming.business?.name}</Link></div>
-                        <div className="activity-sub">{upcoming.service?.name}</div>
-                        <div className="activity-sub">📅 {new Date(upcoming.scheduledAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })} · 🕐 {new Date(upcoming.scheduledAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</div>
-                        <span className={`pill pill-${upcoming.status.toLowerCase()}`}>{upcoming.status[0] + upcoming.status.slice(1).toLowerCase()}</span>
-                      </div>
-                    </div>
-                    <button className="btn btn-primary btn-block" style={{ background: "var(--dash-active)", border: "none", marginTop: 12 }} onClick={() => setSection("bookings")}>
-                      View Booking
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="panel">
-              <div className="panel-head">
-                <h3>Recently Viewed</h3>
-                <button className="linklike" onClick={() => openBrowse()}>View All</button>
-              </div>
-              <div className="panel-body">
-                <RecentlyViewed onBrowse={openBrowse} />
-              </div>
-            </div>
-          </div>
-
-          <div className="cust-side">
-            <div className="panel">
-              <div className="panel-head"><h3>Quick Links</h3></div>
-              <div className="panel-body">
-                <QuickLink icon="calendar" label="My Bookings" onClick={() => setSection("bookings")} />
-                <QuickLink icon="heart" label="My Favorites" onClick={() => setSection("favorites")} />
-                <QuickLink icon="star" label="My Reviews" onClick={() => setSection("reviews")} />
-                <QuickLink icon="chat" label="Help & Support" onClick={() => setSection("settings")} />
-              </div>
-            </div>
-
-            <div className="promo-card">
-              <img className="promo-img" src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=300&q=80" alt="" />
-              <div className="promo-body">
-                <div className="promo-title">Need a service?<br />We've got you covered!</div>
-                <p>From transport to home services, find everything you need on Nearby.</p>
-                <button className="btn btn-primary btn-sm" style={{ background: "var(--dash-active)", border: "none" }} onClick={() => openBrowse()}>
-                  Explore Services
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Overview bookings={bookings} onNav={setSection} onBrowse={openBrowse} />
       )}
 
       {section === "browse" && (
@@ -320,13 +206,188 @@ export default function CustomerDashboard() {
   );
 }
 
-function QuickLink({ icon, label, onClick }) {
+function Overview({ bookings, onNav, onBrowse }) {
+  const [counts, setCounts] = useState(null);
+  const [range, setRange] = useState("Monthly");
+
+  useEffect(() => {
+    Promise.all([
+      api.favorites().catch(() => []),
+      api.myReviews().catch(() => []),
+    ]).then(([favorites, reviews]) => setCounts({ favorites: favorites.length, reviews: reviews.length }));
+  }, []);
+
+  if (!counts) return <p>Loading…</p>;
+
+  const now = new Date();
+  const upcoming = bookings
+    .filter((b) => ["PENDING", "CONFIRMED"].includes(b.status) && new Date(b.scheduledAt) >= now)
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+  const pending = bookings.filter((b) => b.status === "PENDING").length;
+  const completed = bookings.filter((b) => b.status === "COMPLETED").length;
+  const completedShare = bookings.length ? Math.round((completed / bookings.length) * 100) : 0;
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const spentThisMonth = bookings
+    .filter((b) => b.payment?.status === "PAID" && new Date(b.createdAt) >= monthStart)
+    .reduce((s, b) => s + (b.payment?.amountCents || b.priceCents || 0), 0);
+  const recent = [...bookings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+
+  const bs = buckets(range);
+  const byStatus = (s) => bookings.filter((b) => b.status === s).length;
+
   return (
-    <button className="quick-link" onClick={onClick}>
-      <span className="activity-icon tint-purple"><Icon name={icon} size={16} /></span>
-      <span>{label}</span>
-      <span style={{ marginLeft: "auto", color: "var(--ink-2)" }}>›</span>
-    </button>
+    <div>
+      <div className="stat-grid">
+        <StatCard icon="calendar" color="blue" label="Total Bookings" value={bookings.length} foot="All time" footColor="blue" />
+        <StatCard icon="inbox" color="red" label="Pending Requests" value={pending} foot="Awaiting reply" footColor="red" />
+        <StatCard icon="clipboard" color="green" label="Completed" value={completed} foot={`${completedShare}% of bookings`} footColor="green" />
+        <StatCard icon="heart" color="purple" label="Favorites" value={counts.favorites} foot="Saved providers" footColor="purple" />
+        <StatCard icon="star" color="amber" label="My Reviews" value={counts.reviews} foot="Ratings given" footColor="amber" />
+        <StatCard icon="wallet" color="teal" label="Spent This Month" value={formatMoney(spentThisMonth)} foot="Paid" footColor="teal" />
+      </div>
+
+      <div className="dash-2col">
+        <ChartPanel
+          title="Booking activity"
+          icon="chart"
+          ranges={["Daily", "Weekly", "Monthly", "Yearly"]}
+          range={range}
+          onRange={setRange}
+          labels={bs.map((b) => b.label)}
+          series={[
+            { name: "Requests", color: SERIES.blue, points: countByBucket(bookings, bs) },
+            { name: "Completed", color: SERIES.green, points: countByBucket(bookings, bs, (b) => b.status === "COMPLETED") },
+          ]}
+          emptyTitle="No bookings in this period."
+          emptyText="Services you book will appear here over time."
+        />
+        <DonutPanel
+          title="Booking status"
+          icon="clipboard"
+          total={bookings.length}
+          totalLabel="Bookings"
+          slices={[
+            { label: "Confirmed", value: byStatus("CONFIRMED"), color: SERIES.green },
+            { label: "Pending", value: byStatus("PENDING"), color: SERIES.amber },
+            { label: "Completed", value: byStatus("COMPLETED"), color: SERIES.blue },
+            { label: "Cancelled", value: byStatus("CANCELLED"), color: SERIES.red },
+          ]}
+        />
+      </div>
+
+      <div className="dash-cols">
+        <div>
+          <section className="panel">
+            <div className="panel-head">
+              <h3><Icon name="calendar" size={17} />Recent bookings</h3>
+              <button className="linklike" onClick={() => onNav("bookings")}>View all</button>
+            </div>
+            <div className="panel-body flush">
+              {recent.length === 0 && <p style={{ padding: "16px 20px", margin: 0 }}>No bookings yet.</p>}
+              {recent.length > 0 && (
+                <table className="data-table">
+                  <thead><tr><th>Provider</th><th>Service</th><th>Date</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {recent.map((b) => (
+                      <tr key={b.id}>
+                        <td><Link to={`/business/${b.businessId}`}>{b.business?.name}</Link></td>
+                        <td>{b.service?.name}</td>
+                        <td>{new Date(b.scheduledAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
+                        <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h3><Icon name="grid" size={17} />Browse categories</h3>
+              <button className="linklike" onClick={() => onBrowse()}>View all</button>
+            </div>
+            <div className="panel-body">
+              <div className="cat-grid cat-grid-4">
+                {POPULAR_CATEGORIES.map((c) => (
+                  <button key={c.slug} type="button" onClick={() => onBrowse({ category: c.slug })} className="cat-tile">
+                    <span className="cat-tile-icon" style={{ background: `${c.color}26` }}>
+                      <img src={tileIcon(c)} alt="" width={24} height={24} />
+                    </span>
+                    <span className="cat-tile-label">{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div>
+          <section className="panel">
+            <div className="panel-head">
+              <h3><Icon name="calendar" size={17} />Next visits</h3>
+              <button className="linklike" onClick={() => onNav("bookings")}>Manage</button>
+            </div>
+            <div className="panel-body">
+              {upcoming.length === 0 && (
+                <p style={{ margin: 0 }}>
+                  Nothing scheduled.{" "}
+                  <button className="linklike" onClick={() => onBrowse()}>Find a provider →</button>
+                </p>
+              )}
+              {upcoming.slice(0, 4).map((b) => (
+                <div className="activity-item" key={b.id}>
+                  <span className={`activity-icon tint-${b.status === "PENDING" ? "amber" : "green"}`}>
+                    <Icon name="pin" size={16} />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="activity-title">{b.service?.name}</div>
+                    <div className="activity-sub">{b.business?.name}</div>
+                    <div className="hint">
+                      {new Date(b.scheduledAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h3><Icon name="eye" size={17} />Recently viewed</h3>
+              <button className="linklike" onClick={() => onBrowse()}>View all</button>
+            </div>
+            <div className="panel-body">
+              <RecentlyViewed onBrowse={onBrowse} />
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head"><h3><Icon name="dashboard" size={17} />Quick actions</h3></div>
+            <div className="panel-body">
+              <div className="qa-grid">
+                <button className="qa-tile" onClick={() => onBrowse()}>
+                  <span className="activity-icon tint-blue"><Icon name="search" size={18} /></span>
+                  Find Services
+                </button>
+                <button className="qa-tile" onClick={() => onNav("bookings")}>
+                  <span className="activity-icon tint-green"><Icon name="calendar" size={18} /></span>
+                  My Bookings
+                </button>
+                <button className="qa-tile" onClick={() => onNav("favorites")}>
+                  <span className="activity-icon tint-purple"><Icon name="heart" size={18} /></span>
+                  Favorites
+                </button>
+                <button className="qa-tile" onClick={() => onNav("reviews")}>
+                  <span className="activity-icon tint-amber"><Icon name="star" size={18} /></span>
+                  My Reviews
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -346,7 +407,7 @@ function RecentlyViewed({ onBrowse }) {
         <div className="rv-row" key={x.id}>
           <span className="rv-thumb">
             <img
-              src={`https://api.iconify.design/mdi:${iconFor(x.icon)}.svg?color=%236366f1&height=22`}
+              src={`https://api.iconify.design/mdi:${iconFor(x.icon)}.svg?color=%23a5b4fc&height=22`}
               alt="" width={22} height={22}
             />
           </span>
