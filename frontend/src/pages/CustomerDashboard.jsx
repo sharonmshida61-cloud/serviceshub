@@ -8,6 +8,7 @@ import DashboardShell, { Icon } from "../components/DashboardShell.jsx";
 import { BrowsePanel } from "./Browse.jsx";
 import { SettingsPanel } from "./Settings.jsx";
 import { directionsUrl } from "../utils/geolocation.js";
+import { COUNTRIES } from "../utils/countries.js";
 
 const NAV = [
   { key: "home", label: "Home", icon: "home" },
@@ -432,7 +433,7 @@ function NotificationsPanel() {
 function ProfileCard({ user, onSettings }) {
   const { updateProfile } = useAuth();
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState({ name: "", phone: "", nationality: "" });
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [removePhoto, setRemovePhoto] = useState(false);
@@ -447,7 +448,7 @@ function ProfileCard({ user, onSettings }) {
   const photo = preview || (removePhoto ? null : user?.avatarUrl || null);
 
   function startEdit() {
-    setForm({ name: user?.name || "", phone: user?.phone || "" });
+    setForm({ name: user?.name || "", phone: user?.phone || "", nationality: user?.nationality || "" });
     setFile(null); setPreview(null); setRemovePhoto(false); setError("");
     setEditing(true);
   }
@@ -474,6 +475,7 @@ function ProfileCard({ user, onSettings }) {
       await updateProfile({
         name: form.name.trim(),
         phone: form.phone.trim(),
+        nationality: form.nationality.trim() || null,
         ...(avatarUrl !== undefined && { avatarUrl }),
       });
       setFile(null); setPreview(null); setRemovePhoto(false);
@@ -541,7 +543,7 @@ function ProfileCard({ user, onSettings }) {
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   />
                 </div>
-                <div className="field" style={{ marginBottom: 0 }}>
+                <div className="field" style={{ marginBottom: 10 }}>
                   <label htmlFor="profile-phone">Phone</label>
                   <input
                     id="profile-phone"
@@ -550,6 +552,21 @@ function ProfileCard({ user, onSettings }) {
                     placeholder="Optional"
                     onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   />
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label htmlFor="profile-nationality">Nationality</label>
+                  <select
+                    id="profile-nationality"
+                    value={form.nationality}
+                    onChange={(e) => setForm((f) => ({ ...f, nationality: e.target.value }))}
+                  >
+                    <option value="">Not specified</option>
+                    {COUNTRIES.map((country) => (
+                      <option key={country} value={country}>
+                        {country}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </>
             ) : (
@@ -565,6 +582,7 @@ function ProfileCard({ user, onSettings }) {
           <>
             <div className="profile-row"><span className="hint">Email</span><strong>{user?.email}</strong></div>
             <div className="profile-row"><span className="hint">Phone</span><strong>{user?.phone || "—"}</strong></div>
+            <div className="profile-row"><span className="hint">Nationality</span><strong>{user?.nationality || "—"}</strong></div>
             <div className="profile-row"><span className="hint">Member since</span><strong>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</strong></div>
           </>
         )}

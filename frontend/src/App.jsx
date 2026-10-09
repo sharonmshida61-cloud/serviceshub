@@ -13,10 +13,12 @@ import EmployeeDashboard from "./pages/EmployeeDashboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import Settings from "./pages/Settings.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 import Browse from "./pages/Browse.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
 import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
+import { readToken, writeToken } from "./utils/tokenStore.js";
 
 const DASHBOARD_BY_ROLE = {
   CUSTOMER: "/dashboard/customer",
@@ -46,7 +48,7 @@ export default function App() {
 
   // The stored token is validated asynchronously; assume signed-in while it
   // resolves so "/" doesn't flash the guest landing page at returning users.
-  const authed = !!user || (loading && !!localStorage.getItem("token"));
+  const authed = !!user || (loading && !!readToken());
 
   return (
     <div>
@@ -109,14 +111,14 @@ export default function App() {
                           key={role}
                           onClick={() => {
                             // Call switch role endpoint
-                            const token = localStorage.getItem("token");
+                            const token = readToken();
                             fetch(`${API_BASE_URL}/auth/switchRole/${role}`, {
                               method: "POST",
                               headers: { Authorization: `Bearer ${token}` }
                             })
                               .then(r => r.json())
                               .then(({ token: newToken, user: newUser }) => {
-                                localStorage.setItem("token", newToken);
+                                writeToken(newToken);
                                 window.location.reload();
                               });
                             setShowRoleSwitcher(false);
@@ -169,6 +171,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/business/:id" element={<BusinessDetail />} />
         <Route path="/settings" element={
           <ProtectedRoute>

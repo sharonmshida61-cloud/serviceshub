@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { readToken } from "../utils/tokenStore";
 
 export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
@@ -13,6 +14,7 @@ export default function NotificationBell() {
   }, []);
 
   async function loadUnreadCount() {
+    if (!readToken()) return;
     try {
       const data = await api.unreadCount();
       setUnreadCount(data.count);

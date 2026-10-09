@@ -3990,3 +3990,705 @@ table.data-table tr:hover {
 
   .lp-footer-bottom { flex-direction: column; align-items: flex-start; }
 }
+
+/* ============================================================================
+   Sign-in screen
+   Two-panel card on a teal-to-indigo field: proof on the left, form on the
+   right. Scoped under .auth-* so nothing here reaches the rest of the app.
+============================================================================ */
+
+.auth-screen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 70px);
+  min-height: calc(100dvh - 70px);
+  padding: 40px 24px 56px;
+  overflow: hidden;
+  background: linear-gradient(125deg, #14a08f 0%, #2f83b0 40%, #43579f 76%, #4a4f9e 100%);
+}
+
+.auth-decor {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.45) 1.5px, transparent 1.6px);
+  background-size: 15px 15px;
+  -webkit-mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+  mask-image: radial-gradient(circle, #000 45%, transparent 70%);
+}
+
+.auth-decor--tl {
+  top: -56px;
+  left: -46px;
+}
+
+.auth-decor--br {
+  right: -70px;
+  bottom: -80px;
+  width: 360px;
+  height: 360px;
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  width: 100%;
+  max-width: 1000px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 30px 70px rgba(8, 24, 52, 0.38);
+  overflow: hidden;
+}
+
+/* ── Left: photo, wordmark, rotating reviews ────────────────────────────── */
+.auth-aside {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 540px;
+  padding: 34px;
+  background: #12294f;
+  color: #fff;
+}
+
+.auth-aside-photo {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Keeps the copy legible over any photo while holding the mockup's blue cast. */
+.auth-aside::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(155deg, rgba(26, 50, 116, 0.84) 0%, rgba(48, 58, 150, 0.72) 46%,
+    rgba(14, 44, 84, 0.9) 100%);
+}
+
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.auth-brand:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+.auth-brand svg {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.auth-brand span span {
+  color: #5fdcb4;
+}
+
+.auth-quote {
+  position: relative;
+  min-height: 190px;
+  margin: 0;
+}
+
+.auth-quote-mark {
+  display: block;
+  margin-bottom: 6px;
+  color: #2fd6a6;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 3.6rem;
+  line-height: 0.7;
+}
+
+.auth-quote-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  margin: 0;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+
+.auth-quote-item.active {
+  opacity: 1;
+}
+
+.auth-quote-item p {
+  margin: 0 0 10px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 1.02rem;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.auth-quote-item figcaption {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+}
+
+.auth-quote-dots {
+  position: absolute;
+  left: 0;
+  bottom: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.auth-quote-dots button {
+  width: 22px;
+  height: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+}
+
+.auth-quote-dots button.active {
+  background: #fff;
+}
+
+/* ── Right: the form ────────────────────────────────────────────────────── */
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 44px 46px 38px;
+}
+
+.auth-panel h1 {
+  margin: 0 0 6px;
+  color: #1f2a44;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.auth-sub {
+  margin: 0 0 24px;
+  color: #7b879b;
+  font-size: 0.92rem;
+}
+
+/* Mail glyph on the reset screen — drawn rather than fetched so it inherits
+   the same teal as the submit button and never blocks first paint. */
+.auth-illus {
+  display: block;
+  width: 118px;
+  height: 76px;
+  margin: 0 auto 30px;
+  color: #14a08f;
+}
+
+.auth-hint {
+  margin-bottom: 22px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  background: #fdf3e3;
+  color: #e08600;
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.auth-hint--sent {
+  background: #e6f7f0;
+  color: #0f8a7a;
+}
+
+.auth-help {
+  margin: 6px 0 0;
+  color: #8b96a8;
+  font-size: 0.76rem;
+}
+
+/* The expired-link screen offers a button that navigates, so it is an anchor
+   wearing the submit button's clothes. */
+a.auth-submit--link {
+  display: grid;
+  place-items: center;
+  color: #fff;
+  text-decoration: none;
+}
+
+.auth-notice a {
+  color: #14a08f;
+  font-weight: 700;
+}
+
+.auth-panel .alert {
+  margin-bottom: 16px;
+}
+
+.auth-panel .field {
+  margin-bottom: 16px;
+}
+
+.auth-panel .field label {
+  display: block;
+  margin-bottom: 6px;
+  color: #33415c;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.auth-panel .field input,
+.auth-pass input {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #d8dfea;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2a44;
+  font-size: 0.95rem;
+}
+
+.auth-panel .field input:focus,
+.auth-pass input:focus {
+  border-color: #14a08f;
+  box-shadow: 0 0 0 3px rgba(20, 160, 143, 0.15);
+  outline: none;
+}
+
+.auth-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.auth-label-row label {
+  margin-bottom: 0;
+}
+
+.auth-label-row a {
+  color: #14a08f;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.auth-pass {
+  position: relative;
+}
+
+.auth-pass input {
+  padding-right: 44px;
+}
+
+.auth-pass button {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: flex;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: #8b96a8;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.auth-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 20px;
+  color: #33415c;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.auth-remember input {
+  width: 15px;
+  height: 15px;
+  accent-color: #14a08f;
+}
+
+.auth-submit {
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: #14a08f;
+  color: #fff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s ease;
+}
+
+.auth-submit:hover {
+  background: #0f8a7a;
+}
+
+.auth-submit:disabled {
+  background: #86c7bd;
+  cursor: progress;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 16px;
+  color: #8b96a8;
+  font-size: 0.8rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed #dfe5ee;
+}
+
+.auth-providers {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.auth-prov {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid #e3e8f0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-prov:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(16, 38, 76, 0.18);
+}
+
+.auth-prov--facebook {
+  border-color: #3b5998;
+  background: #3b5998;
+}
+
+.auth-prov--github {
+  border-color: #1b1f23;
+  background: #1b1f23;
+}
+
+.auth-prov--twitter {
+  border-color: #1da1f2;
+  background: #1da1f2;
+}
+
+.auth-notice {
+  margin: 12px 0 0;
+  color: #7b879b;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.auth-foot {
+  margin: 22px 0 0;
+  color: #5b6779;
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.auth-foot a {
+  color: #14a08f;
+  font-weight: 700;
+}
+
+.auth-foot--underlined a {
+  text-decoration: underline;
+}
+
+.auth-choices {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 8px;
+}
+
+.auth-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid #d8dfea;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.auth-choice:hover {
+  border-color: #14a08f;
+  box-shadow: 0 8px 22px rgba(15, 32, 61, 0.08);
+  transform: translateY(-1px);
+}
+
+.auth-choice:focus-visible {
+  outline: 2px solid #14a08f;
+  outline-offset: 2px;
+}
+
+.auth-choice-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #e6f7f0;
+  color: #0f8a7a;
+}
+
+.auth-choice-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.auth-choice-text strong {
+  color: #1f2a44;
+  font-size: 0.98rem;
+}
+
+.auth-choice-text small {
+  color: #5b6779;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.auth-choice-arrow {
+  flex: none;
+  margin-left: auto;
+  color: #8b96a8;
+}
+
+.auth-choice:hover .auth-choice-arrow {
+  color: #14a08f;
+}
+
+.auth-rolebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #f3f6fb;
+}
+
+.auth-role-chip {
+  color: #0f8a7a;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.auth-change {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #14a08f;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.auth-group {
+  margin: 24px 0 12px;
+  color: #33415c;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.auth-panel .auth-group:first-of-type {
+  margin-top: 4px;
+}
+
+.auth-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.auth-panel .field select {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #d8dfea;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2a44;
+  font-size: 0.95rem;
+  /* A select's intrinsic height is a couple of px taller than an identically
+     padded input's, which shows when they sit side by side in .auth-row. */
+  height: calc(1lh + 24px);
+  box-sizing: border-box;
+}
+
+.auth-panel .field select:focus {
+  border-color: #14a08f;
+  box-shadow: 0 0 0 3px rgba(20, 160, 143, 0.15);
+  outline: none;
+}
+
+.reg-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.reg-photo-avatar {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px dashed #b9c4d4;
+  border-radius: 50%;
+  background: #f3f6fb;
+  color: #5b6779;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.reg-photo-avatar:hover,
+.reg-photo-avatar:focus-visible {
+  border-color: #14a08f;
+  color: #0f8a7a;
+}
+
+.reg-photo-avatar img {
+  width: 100%;
+  height: 100%;
+}
+
+.reg-photo-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reg-photo-actions .auth-help {
+  margin-top: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-quote-item {
+    transition: none;
+  }
+
+  .reg-photo-avatar {
+    transition: none;
+  }
+
+  .auth-prov:hover,
+  .auth-choice:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .auth-card {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 470px;
+  }
+
+  .auth-aside {
+    min-height: 240px;
+    padding: 24px;
+    gap: 20px;
+  }
+
+  .auth-quote {
+    min-height: 140px;
+  }
+
+  .auth-panel {
+    padding: 30px 26px 30px;
+  }
+}
+
+@media (max-width: 560px) {
+  .auth-screen {
+    padding: 22px 14px 34px;
+  }
+
+  .auth-decor {
+    display: none;
+  }
+
+  .auth-aside {
+    min-height: 0;
+    gap: 14px;
+    padding: 20px;
+  }
+
+  /* The rotating reviews are the reason the panel exists, so they stay on
+     phones rather than being traded for a brand strip. */
+  .auth-quote {
+    min-height: 138px;
+  }
+
+  .auth-quote-mark {
+    font-size: 2.6rem;
+  }
+
+  .auth-quote-item {
+    bottom: 28px;
+  }
+
+  .auth-quote-item p {
+    font-size: 0.92rem;
+    line-height: 1.45;
+  }
+
+  .auth-panel {
+    padding: 26px 20px 26px;
+  }
+
+  .auth-panel h1 {
+    font-size: 1.32rem;
+  }
+
+  .auth-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-choice {
+    gap: 12px;
+    padding: 14px;
+  }
+}
+

@@ -5,6 +5,7 @@ const multer = require("multer");
 const { requireAuth } = require("../middleware/auth");
 const prisma = require("../utils/prisma");
 const uploadRoot = require("../utils/uploadRoot");
+const profilePhoto = require("../utils/profilePhoto");
 
 const router = express.Router();
 
@@ -55,27 +56,17 @@ const avatarUpload = multer({
       cb(null, dir);
     },
     filename(req, file, cb) {
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+      cb(null, profilePhoto.filename(file.originalname));
     },
   }),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-  fileFilter(req, file, cb) {
-    const images = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"];
-    if (images.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("Profile pictures must be JPEG, PNG, GIF, WebP or AVIF images"));
-  },
+  limits: { fileSize: profilePhoto.MAX_BYTES },
+  fileFilter: profilePhoto.fileFilter,
 });
-
-function publicUrl(req, folder, filename) {
-  const apiBase = process.env.API_BASE_URL || `${req.protocol}://${req.get("host")}`;
-  return `${apiBase.replace(/\/$/, "")}/uploads/${folder}/${filename}`;
-}
 
 router.post("/avatar", requireAuth, avatarUpload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file received" });
   res.status(201).json({
-    url: publicUrl(req, `avatars/${req.user.id}`, req.file.filename),
+    url: profilePhoto.url(req, req.user.id, req.file.filename),
     type: "PHOTO",
     filename: req.file.filename,
     size: req.file.size,

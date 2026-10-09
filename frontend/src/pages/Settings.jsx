@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { writeToken } from "../utils/tokenStore.js";
 import { useLanguage } from "../context/LanguageContext";
 import { languages } from "../i18n/translations";
 
@@ -55,7 +56,10 @@ export function SettingsPanel({ embed = false }) {
     }
     setPwSaving(true);
     try {
-      await api.changePassword({ currentPassword: pw.current, newPassword: pw.new });
+      const res = await api.changePassword({ currentPassword: pw.current, newPassword: pw.new });
+      // The old token is now retired everywhere; keep this device signed in
+      // with the fresh one the server issued for the new password.
+      if (res.token) writeToken(res.token);
       setPw({ current: "", new: "", confirm: "" });
       setPwMessage(t("success.passwordChanged"));
     } catch (err) {

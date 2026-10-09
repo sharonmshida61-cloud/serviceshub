@@ -1,20 +1,37 @@
+import { readToken } from "./utils/tokenStore.js";
+
 const BASE_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "/api")).replace(/\/$/, "");
 
 function getToken() {
-  return localStorage.getItem("token");
+  return readToken();
+}
+
+// The server rejects a token whose password fingerprint no longer matches, so
+// one 401 has to end the whole session rather than just fail one request.
+function noteUnauthorized(res, tokenWasSent) {
+  if (res.status === 401 && tokenWasSent) {
+    window.dispatchEvent(new Event("serviceshub:unauthorized"));
+  }
 }
 
 async function request(path, { method = "GET", body, auth = true } = {}) {
-  const headers = { "Content-Type": "application/json" };
+  // Multipart bodies must carry no Content-Type: the browser adds one with the
+  // request boundary, which cannot be known here.
+  const isForm = body instanceof FormData;
+  const headers = isForm ? {} : { "Content-Type": "application/json" };
+  let tokenWasSent = false;
   if (auth) {
     const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+      tokenWasSent = true;
+    }
   }
 
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
   });
 
   let data = null;
@@ -25,6 +42,7 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
   }
 
   if (!res.ok) {
+    noteUnauthorized(res, tokenWasSent);
     const message = (data && data.error) || `Request failed (${res.status})`;
     throw new Error(message);
   }
@@ -42,17 +60,26 @@ async function uploadFile(path, file) {
     body: form,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+  if (!res.ok) {
+    noteUnauthorized(res, !!token);
+    throw new Error(data.error || `Upload failed (${res.status})`);
+  }
   return data;
 }
 
 export const api = {
   // auth
-  register: (payload) => request("/auth/register", { method: "POST", body: payload, auth: false }),
+  // Multipart: the account fields and the required profile picture in one request
+  register: (form) => request("/auth/register", { method: "POST", body: form, auth: false }),
   login: (payload) => request("/auth/login", { method: "POST", body: payload, auth: false }),
+  googleLogin: (credential, remember) =>
+    request("/auth/google", { method: "POST", body: { credential, remember }, auth: false }),
   me: () => request("/auth/me"),
   updateProfile: (payload) => request("/auth/me", { method: "PATCH", body: payload }),
   changePassword: (payload) => request("/auth/change-password", { method: "POST", body: payload }),
+  forgotPassword: (payload) => request("/auth/forgot-password", { method: "POST", body: payload, auth: false }),
+  verifyResetToken: (token) => request("/auth/reset-password/verify", { method: "POST", body: { token }, auth: false }),
+  resetPassword: (payload) => request("/auth/reset-password", { method: "POST", body: payload, auth: false }),
 
   // categories
   categories: (all = false) => request(`/categories${all ? "?all=true" : ""}`),
@@ -99,6 +126,7 @@ export const api = {
   // reviews
   createReview: (payload) => request("/reviews", { method: "POST", body: payload }),
   myReviews: () => request("/reviews/mine"),
+  featuredReviews: () => request("/reviews/featured", { auth: false }),
   businessReviews: (businessId) => request(`/reviews/business/${businessId}`, { auth: false }),
   replyToReview: (id, ownerReply) => request(`/reviews/${id}/reply`, { method: "PATCH", body: { ownerReply } }),
 

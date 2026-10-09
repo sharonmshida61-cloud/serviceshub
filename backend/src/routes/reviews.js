@@ -48,6 +48,31 @@ router.get("/mine", requireAuth, async (req, res) => {
   res.json(reviews);
 });
 
+// Quotes for the sign-in page's rotating panel.
+router.get("/featured", async (req, res) => {
+  const reviews = await prisma.review.findMany({
+    where: { rating: 5, comment: { not: null } },
+    include: {
+      business: { select: { name: true, city: true, category: { select: { name: true } } } },
+      customer: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+  });
+
+  const quotes = reviews
+    .filter((r) => (r.comment || "").trim().length > 24)
+    .slice(0, 6)
+    .map((r) => ({
+      quote: r.comment.trim(),
+      author: r.customer?.name || "A customer",
+      business: r.business?.name || "",
+      category: r.business?.category?.name || "",
+    }));
+
+  res.json(quotes);
+});
+
 router.get("/business/:businessId", async (req, res) => {
   const reviews = await prisma.review.findMany({
     where: { businessId: req.params.businessId },
