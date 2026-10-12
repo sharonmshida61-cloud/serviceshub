@@ -9,8 +9,11 @@ function initials(name) {
 }
 
 function Avatar({ user, className = "dash-avatar" }) {
-  if (user?.avatarUrl) {
-    return <img className={`${className} avatar-img`} src={user.avatarUrl} alt="" />;
+  const [broken, setBroken] = useState(false);
+  const src = user?.avatarUrl;
+  useEffect(() => setBroken(false), [src]);
+  if (src && !broken) {
+    return <img className={`${className} avatar-img`} src={src} alt="" onError={() => setBroken(true)} />;
   }
   return <span className={className}>{initials(user?.name)}</span>;
 }
@@ -54,8 +57,9 @@ export default function DashboardShell({
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [rail, setRail] = useState(false);
+  const [tip, setTip] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const searchRef = useRef(null);
   const clock = useClock();
@@ -66,19 +70,15 @@ export default function DashboardShell({
   const roleLabel = (user?.currentRole || user?.role || "").replace("_", " ").toLowerCase();
 
   const primary = navItems.slice(0, 4);
-  const overflow = navItems.slice(4);
   const groups = groupItems(navItems);
 
-  // Tables are laid out at their natural width; on phones that pushes the page
-  // sideways, so give every one a horizontally scrollable wrapper.
+  // Tables keep their natural width, so their container has to scroll instead of
+  // pushing the page sideways. The existing parent is marked rather than a new
+  // wrapper inserted: React must stay the only owner of the node tree, or a
+  // table that later unmounts (empty filter) crashes the shell.
   useEffect(() => {
-    document.querySelectorAll("table.data-table").forEach((t) => {
-      const p = t.parentElement;
-      if (!p || /table-scroll/.test(p.className) || /auto|scroll|hidden/.test(getComputedStyle(p).overflowX)) return;
-      const wrap = document.createElement("div");
-      wrap.className = "table-scroll";
-      p.insertBefore(wrap, t);
-      wrap.appendChild(t);
+    document.querySelectorAll(".dash-shell table.data-table").forEach((t) => {
+      t.parentElement?.classList.add("table-scroll");
     });
   }, [children, active]);
 
@@ -101,11 +101,18 @@ export default function DashboardShell({
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
-  const go = (key) => { setMoreOpen(false); onNav(key); };
+  const go = (key) => { setDrawerOpen(false); onNav(key); };
 
   function toggleSidebar() {
     if (window.matchMedia("(min-width: 901px)").matches) setRail((r) => !r);
-    else setMoreOpen(true);
+    else setDrawerOpen(true);
+  }
+
+  // The rail scrolls inside the sidebar, so the tooltip is placed from the button's
+  // live viewport rect instead of being anchored in CSS.
+  function showTip(e, label) {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ label, top: r.top + r.height / 2, left: r.right + 10 });
   }
 
   function toggleFullscreen() {
@@ -130,7 +137,11 @@ export default function DashboardShell({
                   type="button"
                   className={active === item.key ? "active" : ""}
                   onClick={() => onNav(item.key)}
-                  title={item.label}
+                  aria-label={item.label}
+                  onMouseEnter={(e) => rail && showTip(e, item.label)}
+                  onMouseLeave={() => setTip(null)}
+                  onFocus={(e) => rail && showTip(e, item.label)}
+                  onBlur={() => setTip(null)}
                 >
                   <Icon name={item.icon} />
                   <span>{item.label}</span>
@@ -151,6 +162,12 @@ export default function DashboardShell({
         </div>
       </aside>
 
+      {rail && tip && (
+        <span className="dash-tip" style={{ top: tip.top, left: tip.left }} aria-hidden="true">
+          {tip.label}
+        </span>
+      )}
+
       <nav className="dash-mnav" aria-label="Dashboard sections">
         {primary.map((item) => (
           <button
@@ -163,21 +180,15 @@ export default function DashboardShell({
             <span>{item.label}</span>
           </button>
         ))}
-        {overflow.length > 0 && (
-          <button type="button" className={overflow.some((o) => o.key === active) ? "active" : ""} onClick={() => setMoreOpen(true)}>
-            <Icon name="grid" size={20} />
-            <span>More</span>
-          </button>
-        )}
       </nav>
 
-      {moreOpen && (
+      {drawerOpen && (
         <div className="dash-drawer" role="dialog" aria-modal="true" aria-label="All sections">
-          <div className="dash-drawer-backdrop" onClick={() => setMoreOpen(false)} />
+          <div className="dash-drawer-backdrop" onClick={() => setDrawerOpen(false)} />
           <div className="dash-drawer-panel">
             <div className="dash-drawer-head">
               <span>Sections</span>
-              <button type="button" onClick={() => setMoreOpen(false)} aria-label="Close">✕</button>
+              <button type="button" onClick={() => setDrawerOpen(false)} aria-label="Close">✕</button>
             </div>
             {groups.map((g) => (
               <div key={g.group || g.items[0].key}>
@@ -201,7 +212,13 @@ export default function DashboardShell({
 
       <div className="dash-main">
         <header className="dash-header">
-          <button type="button" className="dash-icon-btn" onClick={toggleSidebar} aria-label="Toggle menu">
+          <button
+            type="button"
+            className="dash-icon-btn"
+            onClick={toggleSidebar}
+            aria-label="Menu"
+            aria-expanded={drawerOpen}
+          >
             <Icon name="menu" size={17} />
           </button>
           {searchPlaceholder && (

@@ -50,8 +50,9 @@ async function request(path, { method = "GET", body, auth = true } = {}) {
 }
 
 // Multipart POST — the browser sets the boundary, so no Content-Type header here
-async function uploadFile(path, file) {
+async function uploadFile(path, file, extra = {}) {
   const form = new FormData();
+  Object.entries(extra).forEach(([key, value]) => value && form.append(key, value));
   form.append("file", file);
   const token = getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -113,6 +114,8 @@ export const api = {
   businessBookings: (businessId) => request(`/bookings/business/${businessId}`),
   businessCustomers: (businessId) => request(`/businesses/${businessId}/customers`),
   updateBookingStatus: (id, status) => request(`/bookings/${id}/status`, { method: "PATCH", body: { status } }),
+  rescheduleBooking: (id, payload) => request(`/bookings/${id}`, { method: "PATCH", body: payload }),
+  deleteBooking: (id) => request(`/bookings/${id}`, { method: "DELETE" }),
 
   // payments
   payForBooking: (bookingId, method) => request(`/payments/bookings/${bookingId}/pay`, { method: "POST", body: { method } }),
@@ -122,6 +125,12 @@ export const api = {
     request(`/messages/thread/${businessId}${customerId ? `?customerId=${customerId}` : ""}`),
   sendMessage: (businessId, payload) => request(`/messages/thread/${businessId}`, { method: "POST", body: payload }),
   businessThreads: (businessId) => request(`/messages/business/${businessId}/threads`),
+  myThreads: () => request("/messages/mine"),
+  uploadChatMedia: (businessId, file, extra) => uploadFile(`/upload/chat/${businessId}`, file, extra),
+  startLiveShare: (payload) => request("/messages/locations/start", { method: "POST", body: payload }),
+  pingLiveShare: (id, payload) => request(`/messages/locations/${id}/ping`, { method: "POST", body: payload }),
+  stopLiveShare: (id) => request(`/messages/locations/${id}/stop`, { method: "POST" }),
+  myActiveShare: (businessId) => request(`/messages/locations/active?businessId=${businessId}`),
 
   // reviews
   createReview: (payload) => request("/reviews", { method: "POST", body: payload }),

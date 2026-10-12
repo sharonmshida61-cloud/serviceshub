@@ -10,7 +10,10 @@ import { buckets, ChartPanel, DonutPanel, SERIES, StatCard, sumByBucket } from "
 import { SettingsPanel as AccountSettingsPanel } from "./Settings.jsx";
 import LocationPicker from "../components/LocationPicker.jsx";
 import MessageBubble from "../components/MessageBubble.jsx";
-import { getCurrentPosition, hasCoords } from "../utils/geolocation.js";
+import ChatComposer from "../components/ChatComposer.jsx";
+import useChatThread, { stickToBottom } from "../hooks/useChatThread.js";
+import { describeMessage, timeAgo as chatTimeAgo } from "../utils/chatSnippet.js";
+import { hasCoords } from "../utils/geolocation.js";
 
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Live overview of today's activity at your business." },
@@ -1142,93 +1145,100 @@ function EmployeesPanel({ business, onChange }) {
 }
 
 function MessagesPanel({ business }) {
-  const [threads, setThreads] = useState([]);
-  const [activeCustomer, setActiveCustomer] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [text, setText] = useState("");
-  const [locBusy, setLocBusy] = useState("");
-  const [locError, setLocError] = useState("");
+  const [threads, setThreads] = useState(null);
+  const [active, setActive] = useState(null);
+  const [listError, setListError] = useState("");
+  const { messages, error, push } = useChatThread(business?.id, active?.customerId);
+  const endRef = useRef(null);
 
-  useEffect(() => { api.businessThreads(business.id).then(setThreads); }, [business.id]);
+  useEffect(() => {
+    api.businessThreads(business.id).then(setThreads).catch((e) => setListError(e.message));
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") api.businessThreads(business.id).then(setThreads).catch(() => {});
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [business.id]);
 
-  function openThread(customerId) {
-    setActiveCustomer(customerId);
-    api.getThread(business.id, customerId).then(setMessages);
+  useEffect(() => { stickToBottom(endRef.current); }, [messages]);
+
+  function onSent(msg) {
+    push(msg);
+    setThreads((t) => (t || []).map((x) => (x.customerId === msg.customerId
+      ? { ...x, lastMessage: describeMessage(msg), lastAt: msg.createdAt, lastFromMe: true, messageCount: x.messageCount + 1 }
+      : x)));
   }
 
-  async function send() {
-    if (!text.trim()) return;
-    const msg = await api.sendMessage(business.id, { content: text, customerId: activeCustomer });
-    setMessages((m) => [...m, msg]);
-    setText("");
-  }
+  const addressPin = hasCoords(business)
+    ? { latitude: business.latitude, longitude: business.longitude, name: `${business.name} address` }
+    : null;
 
-  async function sendLocation(kind) {
-    setLocBusy(kind);
-    setLocError("");
-    try {
-      const coords = kind === "live"
-        ? await getCurrentPosition()
-        : { latitude: business.latitude, longitude: business.longitude };
-      const msg = await api.sendMessage(business.id, {
-        content: text.trim(),
-        customerId: activeCustomer,
-        ...coords,
-        locationName: kind === "live" ? "Where I am now" : business.name,
-      });
-      setMessages((m) => [...m, msg]);
-      setText("");
-    } catch (e) {
-      setLocError(e.message);
-    } finally {
-      setLocBusy("");
-    }
-  }
-
-  const hasPin = hasCoords(business);
+  if (!threads) return listError ? <div className="alert alert-error">{listError}</div> : <p>Loading…</p>;
 
   return (
-    <div>
-      <h2>Messages</h2>
-      <div className="grid grid-2">
-        <div className="card">
-          <h3>Conversations</h3>
-          {threads.length === 0 && <p className="hint">No messages yet.</p>}
+    <div className="inbox">
+      <section className="panel inbox-list">
+        <div className="panel-head">
+          <h3><Icon name="chat" size={17} />Customers</h3>
+          <span className="hint">{threads.length}</span>
+        </div>
+        <div className="panel-body flush">
+          {threads.length === 0 && (
+            <p className="inbox-empty">No conversations yet. Customers can message you from your listing page.</p>
+          )}
           {threads.map((t) => (
-            <button key={t.customerId} className="dash-nav" style={{ display: "block", width: "100%", textAlign: "left", padding: 10, borderRadius: 8, background: activeCustomer === t.customerId ? "var(--paper-2)" : "transparent", border: "none", cursor: "pointer" }} onClick={() => openThread(t.customerId)}>
-              <div style={{ fontWeight: 600 }}>{t.customerId.slice(0, 8)}…</div>
-              <div className="hint">{t.lastMessage}</div>
+            <button type="button" key={t.customerId}
+              className={`inbox-row${active?.customerId === t.customerId ? " active" : ""}`}
+              onClick={() => setActive(t)}>
+              <span className="inbox-who">
+                <strong>{t.customerName}</strong>
+                <span className="inbox-sub">{chatTimeAgo(t.lastAt)}</span>
+              </span>
+              <span className="inbox-snippet">
+                <span className="inbox-text">{t.lastFromMe ? `You: ${t.lastMessage}` : t.lastMessage}</span>
+                <span className="inbox-count">{t.messageCount}</span>
+              </span>
             </button>
           ))}
         </div>
-        <div className="card">
-          <h3>Thread</h3>
-          {!activeCustomer && <p className="hint">Select a conversation to view it.</p>}
-          {activeCustomer && (
-            <>
-              <div className="msg-thread">
-                {messages.map((m) => (
-                  <MessageBubble key={m.id} message={m} mine={m.senderId !== activeCustomer} />
-                ))}
-              </div>
-              {locError && <div className="alert alert-error">{locError}</div>}
-              <div className="msg-row">
-                <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Reply…" />
-                <button className="btn btn-outline" onClick={send}>Send</button>
-              </div>
-              <div className="msg-loc-actions">
-                <button className="btn btn-outline btn-sm" disabled={!!locBusy} onClick={() => sendLocation("live")}>
-                  {locBusy === "live" ? "Locating…" : "📍 Send my live location"}
-                </button>
-                <button className="btn btn-outline btn-sm" disabled={!!locBusy || !hasPin} onClick={() => sendLocation("pin")}>
-                  📍 Send business pin
-                </button>
-                {!hasPin && <span className="hint">Pin your location in Business details first.</span>}
-              </div>
-            </>
-          )}
+      </section>
+
+      <section className="panel inbox-thread">
+        <div className="panel-head">
+          <h3>
+            <Icon name="chat" size={17} />
+            {active ? active.customerName : "Pick a conversation"}
+          </h3>
         </div>
-      </div>
+
+        {!active && (
+          <div className="panel-body">
+            <p className="inbox-placeholder">Choose a customer on the left to read and reply.</p>
+          </div>
+        )}
+
+        {active && (
+          <>
+            <div className="msg-thread inbox-scroll">
+              {messages.length === 0 && <p className="hint">Say hello.</p>}
+              {messages.map((m) => (
+                <MessageBubble key={m.id} message={m} mine={m.senderId !== active.customerId} />
+              ))}
+              <div ref={endRef} />
+            </div>
+            {error && <div className="alert alert-error inbox-error">{error}</div>}
+            <ChatComposer
+              businessId={business.id}
+              customerId={active.customerId}
+              addressPin={addressPin}
+              onSent={onSent}
+              placeholder={`Reply to ${active.customerName}…`}
+            />
+            {!addressPin && (
+              <p className="hint inbox-note">Pin your location under Business details to send customers your address.</p>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

@@ -1036,6 +1036,11 @@ table.data-table tr:hover {
   padding: 8px;
 }
 
+/* A thread is a shrinking flex column, and bubbles that clip their content
+   (`overflow: hidden` on media and maps) would collapse to 0px instead of
+   making the thread scroll. */
+.msg-thread > * { flex-shrink: 0; }
+
 .msg-bubble {
   max-width: 75%;
   padding: 12px 16px;
@@ -2528,10 +2533,46 @@ table.data-table tr:hover {
 .dash-collapsed .dash-menu button span,
 .dash-collapsed .dash-user-meta,
 .dash-collapsed .dash-version { display: none; }
-.dash-collapsed .dash-menu button { justify-content: center; padding: 10px 0; }
+.dash-collapsed .dash-menu { gap: 4px; }
+/* Labels are hidden here, so the rail ignores grouping and keeps one even rhythm. */
+.dash-collapsed .dash-menu > div { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.dash-collapsed .dash-menu button { width: 44px; justify-content: center; padding: 12px 0; }
 .dash-collapsed .dash-brand { justify-content: center; padding: 4px 0 14px; }
 .dash-collapsed .dash-user-card { justify-content: center; }
 .dash-collapsed .dash-side-footer { padding-top: 12px; }
+
+/* Section name for a rail icon, floated beside the sidebar so the rail's own
+   scroll container can't clip it. */
+.dash-tip {
+  position: fixed;
+  z-index: 60;
+  transform: translateY(-50%);
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: var(--dash-card-2);
+  border: 1px solid var(--dash-edge);
+  color: var(--dash-fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.dash-tip::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  transform: rotate(45deg);
+  background: var(--dash-card-2);
+  border-left: 1px solid var(--dash-edge);
+  border-bottom: 1px solid var(--dash-edge);
+}
 
 .dash-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
@@ -2856,7 +2897,9 @@ table.data-table tr:hover {
 }
 .dash-2col > .panel { margin-bottom: 0; }
 @media (max-width: 1100px) {
-  .dash-2col { grid-template-columns: 1fr; }
+  /* A bare 1fr keeps an auto minimum, so a wide table would widen the column
+     past the viewport instead of scrolling inside it. */
+  .dash-2col { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Daily / Weekly / Monthly / Yearly / Custom range switch */
@@ -3036,13 +3079,15 @@ table.data-table tr:hover {
 
 .dash-cols {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  /* minmax(0, …) on every track: with the default auto minimum a wide table
+     stretches its column instead of scrolling inside the panel. */
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
   gap: 22px;
   align-items: start;
 }
 
 @media (max-width: 1100px) {
-  .dash-cols { grid-template-columns: 1fr; }
+  .dash-cols { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------- Activity feed ---------- */
@@ -3187,10 +3232,9 @@ table.data-table tr:hover {
 .biz-location-card { margin: 18px 0 4px; }
 .biz-location-card .loc-map { margin-top: 8px; }
 
-/* Location shared inside a chat bubble */
-.msg-loc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.msg-loc-actions .hint { font-size: 0.78rem; }
-.msg-bubble--loc { padding: 0; overflow: hidden; max-width: 320px; }
+/* Location, photo, video and voice shared inside a chat bubble */
+.msg-bubble--loc,
+.msg-bubble--media { padding: 0; overflow: hidden; max-width: 320px; }
 .msg-bubble--loc .msg-loc-label { padding: 10px 14px 0; font-weight: 600; font-size: 0.9rem; }
 .msg-bubble--loc .msg-loc-note { padding: 2px 14px 8px; font-size: 0.85rem; opacity: 0.9; }
 .msg-bubble--loc .loc-map { margin: 0; }
@@ -3206,6 +3250,62 @@ table.data-table tr:hover {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 .msg-bubble--loc .msg-time { padding: 0 14px 8px; font-size: 0.7rem; opacity: 0.75; }
+
+/* An attachment has no bubble padding of its own, so its labels keep their own gutter */
+.msg-media-tag {
+  padding: 10px 14px 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.msg-bubble--media .msg-loc-note { padding: 8px 14px 0; font-size: 0.85rem; opacity: 0.92; }
+.msg-bubble--media .msg-time { padding: 4px 14px 8px; font-size: 0.7rem; opacity: 0.75; }
+.msg-media-link { display: block; }
+.msg-media {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  margin-top: 8px;
+  object-fit: cover;
+  background: #000;
+}
+.msg-audio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 220px;
+  padding: 10px 12px 2px;
+}
+.msg-audio audio { flex: 1; min-width: 0; height: 36px; }
+.msg-audio-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+.msg-audio-length {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+/* The file itself is gone but the message is not, so the bubble says so */
+.msg-media-missing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 12px 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: var(--bad, #b3261e);
+  background: rgba(179, 38, 30, 0.09);
+}
 
 /* ---------- Mobile navigation + table scrolling ---------- */
 
@@ -3264,37 +3364,31 @@ table.data-table tr:hover {
   }
 
   .dash-mnav button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 380px) {
-    .dash-mnav button span {
-      white-space: normal;
-      overflow-wrap: break-word;
-      text-align: center;
-      line-height: 1.2;
-    }
-  }
   .dash-mnav button.active { color: white; background: var(--dash-active); }
 
-  /* "More" drawer */
+  /* "Sections" drawer — opened by the header hamburger.  It slides in from
+     the left so it reads like the desktop sidebar and doesn't cover the page
+     from below the way a bottom sheet would. */
   .dash-drawer { display: block; }
   .dash-drawer-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.45);
+    background: rgba(15, 23, 42, 0.55);
     z-index: 50;
   }
   .dash-drawer-panel {
     position: fixed;
-    left: 0;
-    right: 0;
+    top: 0;
     bottom: 0;
+    left: 0;
     z-index: 55;
+    width: min(300px, 84vw);
     background: var(--dash-side);
-    border-top: 1px solid var(--dash-edge);
-    border-radius: 18px 18px 0 0;
-    padding: 14px 14px calc(18px + env(safe-area-inset-bottom));
-    max-height: 70vh;
+    border-right: 1px solid var(--dash-edge);
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
     overflow-y: auto;
-    box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.55);
+    overscroll-behavior: contain;
+    box-shadow: 12px 0 32px rgba(0, 0, 0, 0.55);
   }
   .dash-drawer-head {
     display: flex;
@@ -3365,6 +3459,64 @@ table.data-table tr:hover {
   .dash-search { padding: 6px 10px; }
   .dash-signout,
   .dash-header-right .dash-avatar { width: 30px; height: 30px; }
+}
+
+/* ---------- Dashboard panels on phones ----------
+   Measured at 390px: six stat cards in one column pushed the first chart a
+   full screen down, the range switch needed 256px of a 145px slot, and the
+   chart and donut cards stood over 400px tall each. */
+@media (max-width: 560px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .stat-card { padding: 12px 10px; gap: 8px; }
+  .stat-icon { width: 32px; height: 32px; border-radius: 9px; }
+  .stat-label { font-size: 0.58rem; letter-spacing: 0.04em; }
+  .stat-value { font-size: 1.15rem; }
+  .stat-foot, .stat-trend { font-size: 0.65rem; }
+
+  /* The switch takes the whole row under the title instead of scrolling
+     sideways inside a sliver of the header. */
+  .dash-shell .panel-head { flex-wrap: wrap; padding: 12px 14px; }
+  .seg { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); overflow: visible; }
+  .seg button { padding: 6px 2px; font-size: 0.7rem; }
+
+  .chart-body { padding: 4px 2px 0; }
+  .chart-svg { height: 180px; }
+  .chart-empty { min-height: 180px; padding: 0 12px; }
+  .chart-legend { gap: 12px; padding: 10px 0 2px; font-size: 0.72rem; }
+  .chart-x { font-size: 0.62rem; }
+
+  /* Side-by-side donut + legend leaves the legend a 100px column; stacking
+     them with a two-up legend halves the card. */
+  .donut-wrap { padding: 14px 6px 10px; gap: 12px; }
+  .donut { width: 132px; height: 132px; }
+  .donut-total { font-size: 1.25rem; }
+  .donut-cap { font-size: 0.66rem; }
+  .donut-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+    /* 180px of basis next to the ring: below that it drops to its own line at
+       full width instead of shrinking until the panel clips its values. */
+    flex: 1 1 180px;
+    min-width: 0;
+    max-width: none;
+  }
+  .donut-legend li { font-size: 0.72rem; gap: 6px; }
+
+  /* Five bottom-bar items give each label ~61px, so long ones wrap to two
+     lines rather than ending in an ellipsis. */
+  .dash-mnav button { font-size: 0.56rem; }
+  .dash-mnav button span {
+    white-space: normal;
+    overflow-wrap: break-word;
+    text-align: center;
+    line-height: 1.15;
+  }
+}
+
+/* One stat column only once two stop fitting side by side. */
+@media (max-width: 360px) {
+  .stat-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ============================================================================
@@ -5018,5 +5170,477 @@ a.auth-submit--link {
     gap: 12px;
     padding: 14px;
   }
+}
+
+/* ==========================================================================
+   Customer dashboard: AI finder, bookings calendar + table, provider inbox
+   ========================================================================== */
+
+/* ---------- AI finder ---------- */
+.ai-panel .panel-head h3 svg { color: var(--dash-role); }
+.ai-hint { margin: 2px 0 12px; font-size: 0.82rem; color: var(--dash-fg-2); }
+
+.ai-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 10px;
+  background: #0f141c;
+}
+.ai-msg {
+  max-width: 84%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.ai-msg--ai {
+  align-self: flex-start;
+  background: var(--dash-card-2);
+  border: 1px solid var(--dash-edge);
+  border-bottom-left-radius: 4px;
+}
+.ai-msg--me {
+  align-self: flex-end;
+  background: rgba(157, 140, 255, 0.16);
+  border: 1px solid rgba(157, 140, 255, 0.34);
+  border-bottom-right-radius: 4px;
+}
+.ai-typing { font-style: italic; color: var(--dash-fg-2); }
+
+.ai-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.ai-chip {
+  font-size: 0.73rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(88, 166, 255, 0.12);
+  border: 1px solid rgba(88, 166, 255, 0.26);
+  color: #9cc8ff;
+}
+.ai-chip strong {
+  margin-right: 5px;
+  font-size: 0.63rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dash-fg-2);
+}
+
+.ai-results { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.ai-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0b0f16;
+  border: 1px solid var(--dash-edge);
+  color: var(--dash-fg);
+  text-decoration: none;
+}
+.ai-result:hover { border-color: rgba(157, 140, 255, 0.5); }
+.ai-result-score {
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 4px 8px;
+  border-radius: 8px;
+  color: #b5a8ff;
+  background: rgba(157, 140, 255, 0.14);
+  border: 1px solid rgba(157, 140, 255, 0.3);
+  font-variant-numeric: tabular-nums;
+}
+.ai-result-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ai-result-name { font-size: 0.88rem; font-weight: 700; }
+.ai-result-meta {
+  font-size: 0.76rem;
+  color: var(--dash-fg-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-result-cta { font-size: 0.76rem; font-weight: 700; color: var(--dash-role); white-space: nowrap; }
+
+.ai-starters { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ai-starter {
+  font-size: 0.78rem;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: var(--dash-card-2);
+  border: 1px solid var(--dash-edge);
+  color: var(--dash-fg-2);
+  cursor: pointer;
+}
+.ai-starter:hover { color: var(--dash-fg); border-color: rgba(157, 140, 255, 0.45); }
+
+.ai-compose { display: flex; gap: 8px; margin-top: 12px; }
+.ai-compose input { flex: 1; min-width: 0; }
+.ai-compose .btn { flex: 0 0 auto; }
+
+/* ---------- My bookings ---------- */
+.bookings-split {
+  display: grid;
+  grid-template-columns: minmax(0, 268px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.bookings-split > .panel { margin-bottom: 0; }
+
+.cal-nav { display: flex; gap: 6px; }
+.cal-arrow {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--dash-edge);
+  background: var(--dash-card-2);
+  color: var(--dash-fg-2);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.cal-arrow:hover { color: var(--dash-fg); border-color: #33404f; }
+
+.cal-dow,
+.cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.cal-dow { margin-bottom: 6px; }
+.cal-dow span {
+  text-align: center;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dash-fg-2);
+}
+.cal-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: var(--dash-card-2);
+  color: var(--dash-fg-2);
+  font-size: 0.8rem;
+  cursor: default;
+}
+.cal-cell--blank { background: none; }
+.cal-cell--on {
+  background: rgba(157, 140, 255, 0.12);
+  border-color: rgba(157, 140, 255, 0.3);
+  color: var(--dash-fg);
+  cursor: pointer;
+}
+.cal-cell--today { border-color: var(--amber); color: var(--dash-fg); }
+.cal-cell--sel {
+  background: var(--dash-role);
+  border-color: var(--dash-role);
+  color: #0b0f16;
+  font-weight: 800;
+}
+.cal-num { font-variant-numeric: tabular-nums; }
+.cal-dots { display: flex; gap: 2px; }
+.cal-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.85; }
+
+.cal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+}
+.cal-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 8px 0 0;
+  padding: 0;
+  font-size: 0.72rem;
+  color: var(--dash-fg-2);
+}
+.cal-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.cal-swatch--today { border: 1px solid var(--amber); }
+.cal-swatch--booked { background: rgba(157, 140, 255, 0.2); border: 1px solid rgba(157, 140, 255, 0.4); }
+
+.panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--dash-edge);
+}
+.bookings-notice { margin: 12px 18px 0; }
+.bookings-empty { padding: 16px 20px; margin: 0; color: var(--dash-fg-2); }
+/* min-width keeps the seven columns readable: .panel-body.flush scrolls instead. */
+table.bookings-table { min-width: 680px; }
+.bookings-table th,
+.bookings-table td { padding: 10px 10px; }
+.bookings-table .nowrap { white-space: nowrap; }
+.bk-date,
+.bk-time { display: block; white-space: nowrap; }
+.bk-date { font-weight: 600; }
+.bk-time { font-size: 0.76rem; color: var(--dash-fg-2); }
+.bookings-table tr.row-open { background: rgba(157, 140, 255, 0.06); }
+.booking-note {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  color: var(--dash-fg-2);
+}
+.booking-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.booking-edit {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--dash-edge);
+}
+.booking-edit input,
+.booking-edit textarea { width: 100%; max-width: 320px; }
+
+/* ---------- Provider inbox ---------- */
+.inbox {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.inbox > .panel { margin-bottom: 0; }
+.inbox-list .panel-body.flush { max-height: 520px; overflow-y: auto; }
+
+.inbox-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--dash-edge);
+  color: var(--dash-fg);
+  cursor: pointer;
+}
+.inbox-row:hover { background: var(--dash-card-2); }
+.inbox-row.active {
+  background: var(--dash-role-soft);
+  box-shadow: inset 3px 0 0 var(--dash-role);
+}
+.inbox-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.inbox-who strong { font-size: 0.86rem; }
+.inbox-sub { font-size: 0.72rem; color: var(--dash-fg-2); }
+.inbox-snippet { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.inbox-text {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--dash-fg-2);
+}
+.inbox-count {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--dash-role);
+  background: var(--dash-role-soft);
+}
+.inbox-start { color: var(--dash-role); font-weight: 700; }
+.inbox-empty,
+.inbox-placeholder { padding: 14px 18px; margin: 0; font-size: 0.82rem; color: var(--dash-fg-2); }
+
+.inbox-scroll {
+  max-height: 420px;
+  background: #0f141c;
+  border-bottom: 1px solid var(--dash-edge);
+}
+.inbox-error { margin: 10px 16px 0; }
+.inbox-note { padding: 0 16px 14px; font-size: 0.76rem; }
+.dash-shell .msg-bubble--loc .msg-loc-cta { color: var(--amber-ink, #2b1a00); }
+
+/* ---------- Chat composer (both sides of a conversation) ---------- */
+.chat-compose {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 14px;
+}
+.chat-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 4px 6px;
+  background: var(--dash-card-2);
+  border: 1px solid var(--dash-edge);
+  border-radius: 999px;
+}
+.chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  background: none;
+  border: none;
+  color: var(--dash-fg);
+  font-size: 0.88rem;
+}
+.chat-input:focus { outline: none; }
+.chat-input::placeholder { color: var(--dash-fg-2); }
+.chat-tool {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--dash-fg-2);
+  cursor: pointer;
+}
+.chat-tool:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); color: var(--dash-fg); }
+.chat-tool:disabled { opacity: 0.4; cursor: default; }
+.chat-tool.on { color: var(--dash-role); background: rgba(255, 255, 255, 0.08); }
+.chat-send {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--dash-role);
+  color: #0b0f16;
+  cursor: pointer;
+}
+.chat-send:disabled { opacity: 0.35; cursor: default; }
+
+/* The attach and location menus open upward from the composer */
+.chat-menu-backdrop { position: fixed; inset: 0; z-index: 30; border: none; background: none; cursor: default; }
+.chat-menu {
+  position: absolute;
+  left: 14px;
+  bottom: calc(100% - 8px);
+  z-index: 31;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 240px;
+  padding: 5px;
+  background: var(--dash-card-2);
+  border: 1px solid var(--dash-edge);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+.chat-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--dash-fg);
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+.chat-menu button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.chat-menu button:disabled { opacity: 0.45; cursor: default; }
+
+/* Recording bar */
+.chat-rec {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  border-radius: 14px;
+}
+.chat-rec .hint { flex: 1; font-size: 0.76rem; }
+.chat-rec-time { min-width: 44px; font-weight: 700; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.chat-rec-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff6b6b;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* Running live share */
+.chat-live-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  font-size: 0.78rem;
+  background: var(--dash-card-2);
+  border: 1px dashed var(--dash-role);
+  border-radius: 12px;
+}
+.chat-live-bar .linklike { margin-left: auto; }
+.chat-live-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #3ddc8b;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.chat-live-dot--off { background: var(--dash-fg-2); animation: none; }
+.chat-uploading { padding-left: 4px; font-size: 0.76rem; }
+
+@media (max-width: 1100px) {
+  .bookings-split,
+  .inbox { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .ai-msg { max-width: 94%; }
+  .ai-thread { max-height: none; }
+  .ai-result { grid-template-columns: auto minmax(0, 1fr); }
+  .ai-result-cta { display: none; }
+  .cal-cell { font-size: 0.74rem; }
+  .inbox-list .panel-body.flush { max-height: none; }
+  .inbox-scroll { max-height: 340px; }
+  .booking-note { max-width: 140px; }
+  .msg-bubble { max-width: 86%; }
+}
+
+@media (max-width: 560px) {
+  .chat-compose { padding: 10px 10px 12px; }
+  .chat-field { gap: 2px; padding: 3px; }
+  .chat-tool { width: 30px; height: 30px; }
+  .chat-send { width: 32px; height: 32px; }
+  .chat-menu { left: 10px; right: 10px; min-width: 0; }
+  .chat-live-bar { flex-wrap: wrap; }
+  .msg-bubble--loc,
+  .msg-bubble--media { max-width: min(300px, 88%); }
+  .msg-media { max-height: 230px; }
+  .msg-audio { min-width: 0; }
 }
 

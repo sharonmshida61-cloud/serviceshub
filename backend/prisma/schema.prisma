@@ -29,6 +29,7 @@ model User {
   favorites         Favorite[]
   loyaltyCards      LoyaltyCard[]
   sentMessages      Message[]               @relation("MessageSender")
+  liveShares        LiveLocationShare[]     @relation("LiveShareStarter")
   notifications     Notification[]
   platformLoyalty   PlatformLoyaltyAccount?
   reviews           Review[]
@@ -77,6 +78,7 @@ model Business {
   favorites                   Favorite[]
   loyaltyCards                LoyaltyCard[]
   messages                    Message[]
+  liveShares                  LiveLocationShare[]
   platformLoyaltyTransactions PlatformLoyaltyTransaction[]
   portfolio                   PortfolioItem[]
   reviews                     Review[]
@@ -136,6 +138,7 @@ model Booking {
   priceCents                  Int
   notes                       String?
   createdAt                   DateTime                     @default(now())
+  customerDeletedAt           DateTime?
   business                    Business                     @relation(fields: [businessId], references: [id])
   customer                    User                         @relation("CustomerBookings", fields: [customerId], references: [id])
   service                     Service                      @relation(fields: [serviceId], references: [id])
@@ -158,20 +161,48 @@ model Payment {
 }
 
 model Message {
-  id          String    @id @default(uuid())
+  id          String              @id @default(uuid())
   businessId  String
   customerId  String
   bookingId   String?
   senderId    String
   content     String
+  mediaKind   String?
+  mediaUrl    String?
+  mediaSecs   Int?
   latitude    Float?
   longitude   Float?
   locationName String?
-  createdAt   DateTime  @default(now())
+  liveShareId String?
+  createdAt   DateTime            @default(now())
   readAt      DateTime?
-  booking     Booking?  @relation(fields: [bookingId], references: [id])
-  business    Business  @relation(fields: [businessId], references: [id])
-  sender      User      @relation("MessageSender", fields: [senderId], references: [id])
+  booking     Booking?            @relation(fields: [bookingId], references: [id])
+  business    Business            @relation(fields: [businessId], references: [id])
+  sender      User                @relation("MessageSender", fields: [senderId], references: [id])
+  liveShare   LiveLocationShare?  @relation("LiveShareMessages", fields: [liveShareId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, customerId])
+}
+
+// One row per live location session: the position is overwritten in place so
+// the conversation keeps a single moving bubble instead of a pin per ping.
+model LiveLocationShare {
+  id          String              @id @default(uuid())
+  businessId  String
+  customerId  String
+  startedById String
+  latitude    Float?
+  longitude   Float?
+  accuracy    Float?
+  startedAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  expiresAt   DateTime
+  stoppedAt   DateTime?
+  business    Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  starter     User                @relation("LiveShareStarter", fields: [startedById], references: [id], onDelete: Cascade)
+  messages    Message[]           @relation("LiveShareMessages")
+
+  @@index([businessId, customerId])
 }
 
 model Review {

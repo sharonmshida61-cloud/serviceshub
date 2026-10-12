@@ -32,7 +32,7 @@ router.post("/", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
 // Bookings for the logged-in customer
 router.get("/mine", requireAuth, async (req, res) => {
   const bookings = await prisma.booking.findMany({
-    where: { customerId: req.user.id },
+    where: { customerId: req.user.id, customerDeletedAt: null },
     include: { service: true, business: true, payment: true, review: true },
     orderBy: { scheduledAt: "desc" },
   });
@@ -92,6 +92,49 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
 
   const updated = await prisma.booking.update({ where: { id: req.params.id }, data: { status } });
   res.json(updated);
+});
+
+// Customer moves their own booking to a new time.
+router.patch("/:id", requireAuth, async (req, res) => {
+  const { scheduledAt, notes } = req.body || {};
+  if (!scheduledAt) return res.status(400).json({ error: "scheduledAt is required" });
+
+  const when = new Date(scheduledAt);
+  if (Number.isNaN(when.getTime())) return res.status(400).json({ error: "scheduledAt is not a valid date" });
+
+  const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.customerId !== req.user.id) return res.status(403).json({ error: "Not your booking" });
+  if (!["PENDING", "CONFIRMED"].includes(booking.status)) {
+    return res.status(409).json({ error: `A ${booking.status.toLowerCase()} booking can no longer be moved` });
+  }
+  if (when.getTime() < Date.now()) return res.status(400).json({ error: "Choose a time in the future" });
+
+  // A provider already agreed to the old slot, so the new one needs approving again.
+  const updated = await prisma.booking.update({
+    where: { id: booking.id },
+    data: {
+      scheduledAt: when,
+      ...(notes !== undefined ? { notes } : {}),
+      ...(booking.status === "CONFIRMED" ? { status: "PENDING" } : {}),
+    },
+    include: { service: true, business: true, payment: true, review: true },
+  });
+  res.json(updated);
+});
+
+// Customer removes a booking from their own list. The business keeps its record.
+router.delete("/:id", requireAuth, async (req, res) => {
+  const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.customerId !== req.user.id) return res.status(403).json({ error: "Not your booking" });
+  if (booking.status === "COMPLETED") return res.status(409).json({ error: "A completed booking cannot be deleted" });
+
+  await prisma.booking.update({
+    where: { id: booking.id },
+    data: { status: "CANCELLED", customerDeletedAt: new Date() },
+  });
+  res.json({ ok: true });
 });
 
 module.exports = router;

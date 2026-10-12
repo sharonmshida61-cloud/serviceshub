@@ -6,6 +6,8 @@ const { requireAuth } = require("../middleware/auth");
 const prisma = require("../utils/prisma");
 const uploadRoot = require("../utils/uploadRoot");
 const profilePhoto = require("../utils/profilePhoto");
+const chatMedia = require("../utils/chatMedia");
+const { activeRole, canAccessThread } = require("../utils/threadAccess");
 
 const router = express.Router();
 
@@ -69,6 +71,45 @@ router.post("/avatar", requireAuth, avatarUpload.single("file"), async (req, res
     url: profilePhoto.url(req, req.user.id, req.file.filename),
     type: "PHOTO",
     filename: req.file.filename,
+    size: req.file.size,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/upload/chat/:businessId
+// Attachments for a conversation. Any participant may send one, so the guard is
+// the thread itself (customer, business owner, staff or admin) rather than
+// ownership of the business. Field name "file"; staff also send customerId.
+// ---------------------------------------------------------------------------
+const chatUpload = multer({
+  storage: multer.diskStorage({
+    destination(req, file, cb) {
+      const dir = chatMedia.dirFor(req.params.businessId, req.user.id);
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
+    filename(req, file, cb) {
+      cb(null, chatMedia.filename(file.originalname));
+    },
+  }),
+  limits: { fileSize: chatMedia.MAX_BYTES },
+  fileFilter: chatMedia.fileFilter,
+});
+
+router.post("/chat/:businessId", requireAuth, chatUpload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file received" });
+
+  const customerId = activeRole(req.user) === "CUSTOMER" ? req.user.id : req.body?.customerId;
+  const allowed = customerId && (await canAccessThread(req.user, req.params.businessId, customerId));
+  if (!allowed) {
+    fs.rmSync(req.file.path, { force: true });
+    return res.status(403).json({ error: "You cannot send files in this conversation" });
+  }
+
+  res.status(201).json({
+    url: chatMedia.urlFor(req, req.params.businessId, req.user.id, req.file.filename),
+    kind: chatMedia.kindOf(req.file.mimetype),
+    mime: req.file.mimetype,
     size: req.file.size,
   });
 });

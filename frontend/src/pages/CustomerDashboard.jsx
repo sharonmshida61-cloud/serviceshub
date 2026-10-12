@@ -1,22 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
-import { StarInput, StarDisplay } from "../components/StarRating.jsx";
-import { useLanguage } from "../context/LanguageContext.jsx";
+import { StarDisplay } from "../components/StarRating.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell from "../components/DashboardShell.jsx";
 import Icon from "../components/Icon.jsx";
+import AiFinder from "../components/AiFinder.jsx";
 import { buckets, ChartPanel, countByBucket, DonutPanel, SERIES, StatCard } from "../components/DashboardPanels.jsx";
+import BookingsPanel from "../components/BookingsPanel.jsx";
+import MessagesPanel from "../components/MessagesPanel.jsx";
 import { BrowsePanel } from "./Browse.jsx";
 import { SettingsPanel } from "./Settings.jsx";
-import { directionsUrl } from "../utils/geolocation.js";
 import { COUNTRIES } from "../utils/countries.js";
 
 const NAV = [
   { key: "home", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Your bookings, saved providers and activity at a glance." },
   { key: "browse", label: "Find Services", icon: "search", group: "Discover", subtitle: "Search and browse every provider near you." },
   { key: "favorites", label: "Favorites", icon: "heart", subtitle: "Providers you have saved for later." },
-  { key: "bookings", label: "My Bookings", icon: "calendar", group: "Activity", subtitle: "Pay, cancel and review your requests." },
+  { key: "bookings", label: "My Bookings", icon: "calendar", group: "Activity", subtitle: "Pay, reschedule and review your requests." },
+  { key: "messages", label: "Messages", icon: "chat", subtitle: "Chat with the providers you booked." },
   { key: "reviews", label: "My Reviews", icon: "star", subtitle: "Ratings you have left for providers." },
   { key: "notifications", label: "Notifications", icon: "bell", group: "Account", subtitle: "Updates about your bookings." },
   { key: "profile", label: "Profile", icon: "users", subtitle: "Your details and profile picture." },
@@ -37,17 +39,12 @@ const POPULAR_CATEGORIES = [
 const tileIcon = (c) => `https://api.iconify.design/mdi:${c.mdi}.svg?color=${encodeURIComponent(c.color)}&height=24`;
 
 export default function CustomerDashboard() {
-  const { t } = useLanguage();
   const { user } = useAuth();
   const [section, setSection] = useState("home");
   // Category/query the dashboard pushes into the inline find-services panel
   const [browseSeed, setBrowseSeed] = useState({ category: "", q: "" });
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState("");
-  const [reviewFor, setReviewFor] = useState(null);
-  const [rating, setRating] = useState(5);
-  const [comment, setComment] = useState("");
-  const [busyId, setBusyId] = useState(null);
 
   function load() {
     api.myBookings().then(setBookings).catch((e) => setError(e.message));
@@ -65,28 +62,6 @@ export default function CustomerDashboard() {
   function openBrowse({ category = "", q = "" } = {}) {
     setBrowseSeed({ category, q });
     setSection("browse");
-  }
-
-  async function pay(booking) {
-    setBusyId(booking.id);
-    setError("");
-    try { await api.payForBooking(booking.id, "card"); load(); }
-    catch (e) { setError(e.message); }
-    finally { setBusyId(null); }
-  }
-
-  async function cancel(booking) {
-    setBusyId(booking.id);
-    try { await api.updateBookingStatus(booking.id, "CANCELLED"); load(); }
-    catch (e) { setError(e.message); }
-    finally { setBusyId(null); }
-  }
-
-  async function submitReview(booking) {
-    try {
-      await api.createReview({ bookingId: booking.id, rating, comment });
-      setReviewFor(null); setComment(""); setRating(5); load();
-    } catch (e) { setError(e.message); }
   }
 
   const memberSince = user?.createdAt
@@ -110,8 +85,13 @@ export default function CustomerDashboard() {
       )}
 
       {section === "browse" && (
-        <BrowsePanel embed initialCategory={browseSeed.category} initialQuery={browseSeed.q} />
+        <>
+          <AiFinder />
+          <BrowsePanel embed initialCategory={browseSeed.category} initialQuery={browseSeed.q} />
+        </>
       )}
+
+      {section === "messages" && <MessagesPanel />}
 
       {section === "favorites" && <Favorites onBrowse={openBrowse} />}
 
@@ -124,83 +104,7 @@ export default function CustomerDashboard() {
       {section === "settings" && <SettingsPanel embed />}
 
       {section === "bookings" && (
-        <>
-          {bookings.length === 0 && (
-            <div className="empty-state card">
-              <h3>{t("dashboard.customer.noBookings")}</h3>
-              <p>{t("dashboard.customer.noBookings.desc")}</p>
-              <button className="btn btn-primary" onClick={() => openBrowse()}>{t("dashboard.customer.discoverProviders")}</button>
-            </div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {bookings.map((b) => (
-              <div className="card" key={b.id}>
-                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                  <div>
-                    <h3 style={{ marginBottom: 4 }}>
-                      <Link to={`/business/${b.businessId}`}>{b.business?.name}</Link>
-                    </h3>
-                    <p style={{ margin: 0 }}>{b.service?.name} · {new Date(b.scheduledAt).toLocaleString()}</p>
-                    {b.notes && <p className="hint">{t("dashboard.customer.note")} {b.notes}</p>}
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span>
-                    <div style={{ fontWeight: 700, marginTop: 6 }}>{formatMoney(b.priceCents)}</div>
-                    <div style={{ fontSize: "0.8rem", color: "var(--ink-2)" }}>
-                      {b.payment?.status === "PAID" ? t("dashboard.customer.paid") : t("dashboard.customer.notPaid")}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                  {b.status !== "CANCELLED" && b.status !== "DECLINED" && b.payment?.status !== "PAID" && (
-                    <button className="btn btn-primary btn-sm" disabled={busyId === b.id} onClick={() => pay(b)}>
-                      {busyId === b.id ? t("dashboard.customer.processing") : t("dashboard.customer.payNow")}
-                    </button>
-                  )}
-                  {["PENDING", "CONFIRMED"].includes(b.status) && (
-                    <button className="btn btn-danger btn-sm" disabled={busyId === b.id} onClick={() => cancel(b)}>
-                      {t("dashboard.customer.cancelBooking")}
-                    </button>
-                  )}
-                  <Link to={`/business/${b.businessId}`}><button className="btn btn-outline btn-sm">{t("dashboard.customer.messageProvider")}</button></Link>
-                  {b.business?.latitude != null && b.business?.longitude != null && (
-                    <a
-                      className="btn btn-outline btn-sm"
-                      href={directionsUrl({ latitude: b.business.latitude, longitude: b.business.longitude })}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      📍 {t("business.getDirections")}
-                    </a>
-                  )}
-                  {b.status === "COMPLETED" && !b.review && (
-                    <button className="btn btn-outline btn-sm" onClick={() => setReviewFor(reviewFor === b.id ? null : b.id)}>
-                      {t("dashboard.customer.leaveReview")}
-                    </button>
-                  )}
-                  {b.review && <span className="hint">{t("dashboard.customer.rated", "You rated this {rating}★").replace("{rating}", b.review.rating)}</span>}
-                </div>
-
-                {reviewFor === b.id && (
-                  <div style={{ marginTop: 12, borderTop: "1px solid var(--line)", paddingTop: 12 }}>
-                    <StarInput value={rating} onChange={setRating} />
-                    <textarea
-                      rows={2}
-                      placeholder={t("dashboard.customer.howDidItGo")}
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      style={{ width: "100%", marginTop: 8, padding: 10, borderRadius: 8, border: "1px solid var(--line)" }}
-                    />
-                    <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => submitReview(b)}>
-                      {t("dashboard.customer.submitReview")}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </>
+        <BookingsPanel bookings={bookings} reload={load} onError={setError} onBrowse={openBrowse} />
       )}
     </DashboardShell>
   );
@@ -497,7 +401,6 @@ function ProfileCard({ user, onSettings }) {
   const [form, setForm] = useState({ name: "", phone: "", nationality: "" });
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [removePhoto, setRemovePhoto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef(null);
@@ -506,16 +409,26 @@ function ProfileCard({ user, onSettings }) {
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
   const initials = (user?.name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
-  const photo = preview || (removePhoto ? null : user?.avatarUrl || null);
+  const photo = preview || user?.avatarUrl || null;
+  const [photoBroken, setPhotoBroken] = useState(false);
+  useEffect(() => setPhotoBroken(false), [photo]);
+  const visible = !!photo && !photoBroken;
+
+  // Only what the customer actually gave at sign-up — nothing they never filled.
+  const details = [
+    { label: "Email", value: user?.email },
+    { label: "Phone", value: user?.phone },
+    { label: "Nationality", value: user?.nationality },
+  ].filter((d) => d.value);
 
   function startEdit() {
     setForm({ name: user?.name || "", phone: user?.phone || "", nationality: user?.nationality || "" });
-    setFile(null); setPreview(null); setRemovePhoto(false); setError("");
+    setFile(null); setPreview(null); setError("");
     setEditing(true);
   }
 
   function cancelEdit() {
-    setFile(null); setPreview(null); setRemovePhoto(false); setError("");
+    setFile(null); setPreview(null); setError("");
     setEditing(false);
   }
 
@@ -524,22 +437,20 @@ function ProfileCard({ user, onSettings }) {
     if (!next.type.startsWith("image/")) { setError("Choose an image file"); return; }
     setFile(next);
     setPreview(URL.createObjectURL(next));
-    setRemovePhoto(false);
   }
 
   async function save() {
+    const name = form.name.trim();
+    if (name.length < 2) { setError("Enter a name with at least 2 characters"); return; }
     setSaving(true); setError("");
     try {
-      let avatarUrl;
-      if (file) avatarUrl = (await api.uploadAvatar(file)).url;
-      else if (removePhoto) avatarUrl = null;
       await updateProfile({
-        name: form.name.trim(),
+        name,
         phone: form.phone.trim(),
         nationality: form.nationality.trim() || null,
-        ...(avatarUrl !== undefined && { avatarUrl }),
+        ...(file && { avatarUrl: (await api.uploadAvatar(file)).url }),
       });
-      setFile(null); setPreview(null); setRemovePhoto(false);
+      setFile(null); setPreview(null);
       setEditing(false);
     } catch (e) {
       setError(e.message);
@@ -566,7 +477,7 @@ function ProfileCard({ user, onSettings }) {
                 onClick={() => fileRef.current?.click()}
                 aria-label="Choose a profile picture"
               >
-                {photo ? <img className="avatar-img" src={photo} alt="" /> : initials}
+                {visible ? <img className="avatar-img" src={photo} alt="" onError={() => setPhotoBroken(true)} /> : initials}
               </button>
               <input
                 ref={fileRef}
@@ -577,18 +488,13 @@ function ProfileCard({ user, onSettings }) {
               />
               <div className="avatar-edit-actions">
                 <button type="button" className="linklike" onClick={() => fileRef.current?.click()}>
-                  {photo ? "Change photo" : "Upload photo"}
+                  {visible ? "Change photo" : "Upload photo"}
                 </button>
-                {photo && (
-                  <button type="button" className="linklike" onClick={() => { setFile(null); setPreview(null); setRemovePhoto(true); }}>
-                    Remove
-                  </button>
-                )}
               </div>
             </div>
           ) : (
-            photo
-              ? <img className="profile-avatar avatar-img" src={photo} alt="" />
+            visible
+              ? <img className="profile-avatar avatar-img" src={photo} alt="" onError={() => setPhotoBroken(true)} />
               : <span className="profile-avatar">{initials}</span>
           )}
 
@@ -631,22 +537,17 @@ function ProfileCard({ user, onSettings }) {
                 </div>
               </>
             ) : (
-              <>
-                <div style={{ fontWeight: 800, fontSize: "1.05rem" }}>{user?.name}</div>
-                <div className="hint">{(user?.currentRole || user?.role || "").replace("_", " ").toLowerCase()}</div>
-              </>
+              <div style={{ fontWeight: 800, fontSize: "1.05rem" }}>{user?.name}</div>
             )}
           </div>
         </div>
 
-        {!editing && (
-          <>
-            <div className="profile-row"><span className="hint">Email</span><strong>{user?.email}</strong></div>
-            <div className="profile-row"><span className="hint">Phone</span><strong>{user?.phone || "—"}</strong></div>
-            <div className="profile-row"><span className="hint">Nationality</span><strong>{user?.nationality || "—"}</strong></div>
-            <div className="profile-row"><span className="hint">Member since</span><strong>{user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}</strong></div>
-          </>
-        )}
+        {!editing && details.map((d) => (
+          <div className="profile-row" key={d.label}>
+            <span className="hint">{d.label}</span>
+            <strong>{d.value}</strong>
+          </div>
+        ))}
 
         <div style={{ marginTop: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           {editing ? (

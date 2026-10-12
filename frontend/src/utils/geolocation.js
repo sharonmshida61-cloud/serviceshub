@@ -25,6 +25,25 @@ export function getCurrentPosition() {
 
 export const hasCoords = (v) => !!(v && Number.isFinite(v.latitude) && Number.isFinite(v.longitude));
 
+// A live share needs a stream of fixes, not one snapshot. Returns the cancel
+// function so the caller can hand it to an effect cleanup.
+export function watchPosition(onFix, onError) {
+  if (!("geolocation" in navigator)) {
+    onError?.(new Error("This browser can't share a location"));
+    return () => {};
+  }
+  const id = navigator.geolocation.watchPosition(
+    (pos) => onFix({
+      latitude: round(pos.coords.latitude),
+      longitude: round(pos.coords.longitude),
+      accuracy: Math.round(pos.coords.accuracy || 0),
+    }),
+    (err) => onError?.(err),
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+  );
+  return () => navigator.geolocation.clearWatch(id);
+}
+
 export function directionsUrl({ latitude, longitude }) {
   return `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
 }
