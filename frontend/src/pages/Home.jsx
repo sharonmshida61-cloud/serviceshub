@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
-import SmartMatch from "../components/SmartMatch.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -183,10 +182,6 @@ export default function Home() {
       </section>
 
       <div className="container page">
-        <section className="lp-smartmatch">
-          <SmartMatch />
-        </section>
-
         {/* ── Category bento ── */}
         <section className="lp-section" id="lp-categories">
           <header className="lp-section-head">

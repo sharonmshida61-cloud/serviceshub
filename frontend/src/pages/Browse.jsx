@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
 import BusinessQuickView from "../components/BusinessQuickView.jsx";
+import AiFinder from "../components/AiFinder.jsx";
+import CitySelect from "../components/CitySelect.jsx";
+import useCities from "../hooks/useCities.js";
 import { getCategoryImage } from "../utils/categoryImages.js";
 import { getBusinessCover } from "../utils/businessCovers.js";
 import { useAuth } from "../context/AuthContext";
@@ -19,7 +22,7 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
     newest: t("browse.sort.newest"),
   };
   const [categories, setCategories] = useState([]);
-  const [cities, setCities] = useState([]);
+  const cities = useCities();
   const [businesses, setBusinesses] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,11 +42,11 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
 
   const [compareIds, setCompareIds] = useState([]);
   const [quickView, setQuickView] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const debounceRef = useRef(null);
 
   useEffect(() => {
     api.categories().then(setCategories).catch(() => {});
-    api.businessCities().then(setCities).catch(() => {});
   }, []);
 
   // The dashboard keeps this panel mounted, so a new category tile or search has
@@ -124,14 +127,11 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
 
   const hasActiveFilters = filters.q || filters.city || filters.category || filters.sort !== "rating";
 
-  // A city can arrive from a link without having any approved listings yet, so
-  // it still has to be representable in the picker.
-  const cityOptions = (selected) =>
-    selected && !cities.some((c) => c.city === selected)
-      ? [...cities, { city: selected, count: 0 }]
-      : cities;
-
-  const optionLabel = (c) => (c.count ? `${c.city} (${c.count})` : c.city);
+  // The launch region spans several countries, so the hint names the country too.
+  const areaLabel = (city) => {
+    const found = cities.find((c) => c.city === city);
+    return found && found.country ? `${city}, ${found.country}` : city;
+  };
 
   return (
     <div className={embed ? "browse-panel browse-panel--embed" : "container page browse-panel"}>
@@ -156,12 +156,13 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
                 <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
                 <circle cx="12" cy="12" r="8" />
               </svg>
-              <select id="my-area" value={myArea} onChange={(e) => chooseMyArea(e.target.value)}>
-                <option value="">{t("browse.location.notSet")}</option>
-                {cityOptions(myArea).map((c) => (
-                  <option key={c.city} value={c.city}>{optionLabel(c)}</option>
-                ))}
-              </select>
+              <CitySelect
+                id="my-area"
+                cities={cities}
+                value={myArea}
+                onChange={chooseMyArea}
+                placeholder={t("browse.location.notSet")}
+              />
             </div>
           </div>
 
@@ -173,19 +174,20 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
                 strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
               </svg>
-              <select id="search-city" value={filters.city} onChange={(e) => chooseSearchCity(e.target.value)}>
-                <option value="">{t("browse.location.allCities")}</option>
-                {cityOptions(filters.city).map((c) => (
-                  <option key={c.city} value={c.city}>{optionLabel(c)}</option>
-                ))}
-              </select>
+              <CitySelect
+                id="search-city"
+                cities={cities}
+                value={filters.city}
+                onChange={chooseSearchCity}
+                placeholder={t("browse.location.allCities")}
+              />
             </div>
           </div>
 
           <p className="browse-location-hint">
             {filters.city ? (
               <>
-                {t("browse.location.showing")} <strong>{filters.city}</strong>
+                {t("browse.location.showing")} <strong>{areaLabel(filters.city)}</strong>
               </>
             ) : (
               t("browse.location.pickOne")
@@ -273,26 +275,63 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
       )}
 
       {/* ── Category picker ── */}
-      <div className="category-grid">
+      <div className="category-section-wrap">
+        {/* AI chat icon — top-right of the category section */}
         <button
-          className={`category-chip ${filters.category === "" ? "active" : ""}`}
-          onClick={() => setFilters((f) => ({ ...f, category: "" }))}
+          type="button"
+          className="ai-chat-icon-btn"
+          onClick={() => setAiOpen((o) => !o)}
+          aria-label="Find with AI"
+          title="Find with AI"
         >
-          <img src="https://api.iconify.design/mdi:folder.svg?color=%23fb8500&height=48" alt={t("browse.allCategories")} />
-          {t("browse.allCategories")}
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 2a8 8 0 0 1 8 8c0 5-8 12-8 12S4 15 4 10a8 8 0 0 1 8-8z"/>
+            <circle cx="12" cy="10" r="3"/>
+            <path d="M9.5 7.5 8 6M14.5 7.5 16 6M12 7V5"/>
+          </svg>
+          <span className="ai-chat-icon-label">AI</span>
         </button>
-        {categories.map((c) => (
+
+        {/* Floating AI chat card */}
+        {aiOpen && (
+          <div className="ai-chat-float-card">
+            <div className="ai-chat-float-header">
+              <span>🤖 Find with AI</span>
+              <button
+                type="button"
+                className="ai-chat-float-close"
+                onClick={() => setAiOpen(false)}
+                aria-label="Close AI chat"
+              >×</button>
+            </div>
+            <div className="ai-chat-float-body">
+              <AiFinder />
+            </div>
+          </div>
+        )}
+
+        <div className="category-grid">
           <button
-            key={c.id}
-            className={`category-chip ${filters.category === c.slug ? "active" : ""}`}
-            onClick={() =>
-              setFilters((f) => ({ ...f, category: f.category === c.slug ? "" : c.slug }))
-            }
+            className={`category-chip ${filters.category === "" ? "active" : ""}`}
+            onClick={() => setFilters((f) => ({ ...f, category: "" }))}
           >
-            <img src={getCategoryImage(c)} alt={c.name} />
-            {c.name}
+            <img src="https://api.iconify.design/mdi:folder.svg?color=%23fb8500&height=48" alt={t("browse.allCategories")} />
+            {t("browse.allCategories")}
           </button>
-        ))}
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              className={`category-chip ${filters.category === c.slug ? "active" : ""}`}
+              onClick={() =>
+                setFilters((f) => ({ ...f, category: f.category === c.slug ? "" : c.slug }))
+              }
+            >
+              <img src={getCategoryImage(c)} alt={c.name} />
+              {c.name}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Results header ── */}

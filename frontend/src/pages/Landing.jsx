@@ -5,6 +5,7 @@ import SiteFooter from "../components/SiteFooter.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { getCategoryImage } from "../utils/categoryImages.js";
 import { CATEGORY_COVER, coverForCategory } from "../utils/categoryCovers.js";
+import useCities from "../hooks/useCities.js";
 
 const HERO_BG =
   "https://images.unsplash.com/photo-1581596326248-f55ac7852760?w=1600&q=80&auto=format&fit=crop";
@@ -62,7 +63,7 @@ export default function Landing() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
-  const [cities, setCities] = useState([]);
+  const cities = useCities();
   const [q, setQ] = useState("");
   const [slide, setSlide] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -72,8 +73,11 @@ export default function Landing() {
 
   useEffect(() => {
     api.categories().then(setCategories).catch(() => {});
-    api.businessCities().then(setCities).catch(() => {});
   }, []);
+
+  // The catalogue covers the whole launch region, so only cities that already
+  // have an approved listing count as coverage.
+  const coveredCities = cities.filter((c) => c.count > 0).length;
 
   const slides = useMemo(
     () =>
@@ -216,7 +220,7 @@ export default function Landing() {
             {categories.length > 0 && (
               <span className="lp-count">
                 {categories.length} {t("landing.stats.categories")}
-                {cities.length > 0 && ` · ${cities.length} ${t("landing.stats.cities")}`}
+                {coveredCities > 0 && ` · ${coveredCities} ${t("landing.stats.cities")}`}
               </span>
             )}
           </header>

@@ -3,11 +3,11 @@ const prisma = require("../utils/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { readCoords } = require("../utils/coords");
 const { activeRole, canAccessThread } = require("../utils/threadAccess");
-const { assertOwnUpload } = require("../utils/chatMedia");
+const { assertOwnUpload, isBundledSticker, displayName } = require("../utils/chatMedia");
 
 const router = express.Router();
 
-const MEDIA_KINDS = ["IMAGE", "VIDEO", "AUDIO"];
+const MEDIA_KINDS = ["IMAGE", "VIDEO", "AUDIO", "STICKER", "DOCUMENT"];
 // WhatsApp's own choices, with the 8-hour option trimmed: a longer share than
 // this is a courier, not a customer trying to find the door.
 const LIVE_MINUTES = [15, 60];
@@ -19,6 +19,8 @@ function snippet(message) {
   if (message.mediaKind === "IMAGE") return "📷 Photo";
   if (message.mediaKind === "VIDEO") return "🎥 Video";
   if (message.mediaKind === "AUDIO") return "🎤 Voice message";
+  if (message.mediaKind === "STICKER") return "🏷️ Sticker";
+  if (message.mediaKind === "DOCUMENT") return `📄 ${message.mediaName || "Document"}`;
   if (message.liveShareId) return "📍 Live location";
   if (message.latitude !== null && message.latitude !== undefined) return `📍 ${message.locationName || "Location"}`;
   return message.content;
@@ -124,16 +126,29 @@ router.get("/business/:businessId/threads", requireAuth, async (req, res) => {
 });
 
 function parseMedia(req, body) {
-  const { mediaKind, mediaUrl, mediaSecs } = body || {};
+  const { mediaKind, mediaUrl, mediaSecs, mediaName, mediaSize } = body || {};
   if (!mediaKind && !mediaUrl) return {};
-  if (!MEDIA_KINDS.includes(mediaKind)) throw new Error("Attachment must be a photo, video or audio clip");
+  if (!MEDIA_KINDS.includes(mediaKind)) throw new Error("Attachment must be a photo, video, audio clip, sticker or document");
   if (!mediaUrl) throw new Error("Upload the file before sending it");
-  assertOwnUpload(req, mediaUrl);
+  // A sticker ships with the app instead of being uploaded, so it is checked
+  // against the bundled asset path rather than this server's upload folder.
+  if (mediaKind === "STICKER") {
+    if (!isBundledSticker(mediaUrl)) throw new Error("That sticker is not available");
+  } else {
+    assertOwnUpload(req, mediaUrl);
+  }
   const seconds = Number(mediaSecs);
+  const bytes = Number(mediaSize);
   return {
     mediaKind,
     mediaUrl,
     ...(Number.isFinite(seconds) && seconds > 0 ? { mediaSecs: Math.min(Math.round(seconds), 600) } : {}),
+    ...(mediaKind === "DOCUMENT"
+      ? {
+          mediaName: displayName(mediaName),
+          mediaSize: Number.isFinite(bytes) && bytes > 0 ? Math.min(Math.round(bytes), 50 * 1024 * 1024) : null,
+        }
+      : {}),
   };
 }
 

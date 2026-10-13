@@ -4,6 +4,8 @@ import AuthAside from "../components/AuthAside.jsx";
 import EyeIcon from "../components/EyeIcon.jsx";
 import { api } from "../api";
 import { COUNTRIES } from "../utils/countries";
+import CitySelect from "../components/CitySelect.jsx";
+import useCities from "../hooks/useCities.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
 
@@ -60,6 +62,7 @@ export default function Register() {
   const navigate = useNavigate();
   const [role, setRole] = useState(null); // null keeps the account-type chooser open
   const [categories, setCategories] = useState([]);
+  const cities = useCities();
   const [form, setForm] = useState(EMPTY_FORM);
   const [photo, setPhoto] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -236,11 +239,13 @@ export default function Register() {
                     </div>
                     <div className="field">
                       <label htmlFor="reg-city">{t("auth.register.city")}</label>
-                      <input
+                      <CitySelect
                         id="reg-city"
+                        cities={cities}
                         value={form.city}
-                        onChange={update("city")}
+                        onChange={(city) => setForm((f) => ({ ...f, city }))}
                         placeholder={t("auth.register.cityPlaceholder")}
+                        showCounts={false}
                       />
                     </div>
                   </div>

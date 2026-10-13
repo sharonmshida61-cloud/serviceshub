@@ -17,6 +17,8 @@ export function describeMessage(msg) {
   if (msg.mediaKind === "IMAGE") return "📷 Photo";
   if (msg.mediaKind === "VIDEO") return "🎥 Video";
   if (msg.mediaKind === "AUDIO") return "🎤 Voice message";
+  if (msg.mediaKind === "STICKER") return "🏷️ Sticker";
+  if (msg.mediaKind === "DOCUMENT") return `📄 ${msg.mediaName || "Document"}`;
   if (msg.liveShareId || msg.liveShare) return "📍 Live location";
   if (msg.latitude !== null && msg.latitude !== undefined) return `📍 ${msg.locationName || "Location"}`;
   return msg.content;

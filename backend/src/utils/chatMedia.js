@@ -7,11 +7,29 @@ const uploadRoot = require("./uploadRoot");
 const IMAGES = ["image/jpeg", "image/png", "image/gif", "image/webp", "image/avif"];
 const VIDEOS = ["video/mp4", "video/webm", "video/quicktime", "video/x-msvideo"];
 const AUDIOS = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/ogg", "audio/wav", "audio/x-wav", "audio/aac"];
-const ALLOWED = [...IMAGES, ...VIDEOS, ...AUDIOS];
+// Office documents, PDFs and plain text. No archives: a zip in a support chat is
+// a malware delivery route, not a quotation.
+const DOCUMENTS = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/rtf",
+  "text/rtf",
+  "text/plain",
+  "text/csv",
+];
+const ALLOWED = [...IMAGES, ...VIDEOS, ...AUDIOS, ...DOCUMENTS];
 
 // A phone voice note is a few hundred KB; the 50 MB ceiling is for the video a
 // customer films on site.
 const MAX_BYTES = 50 * 1024 * 1024;
+// Nobody sends a 50 MB invoice, and a document is the one attachment nobody
+// previews, so an oversized one is a download nobody asked for.
+const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 const baseMime = (mimetype) => String(mimetype || "").split(";")[0].trim().toLowerCase();
 
@@ -20,12 +38,13 @@ const kindOf = (mimetype) => {
   if (IMAGES.includes(mime)) return "IMAGE";
   if (VIDEOS.includes(mime)) return "VIDEO";
   if (AUDIOS.includes(mime)) return "AUDIO";
+  if (DOCUMENTS.includes(mime)) return "DOCUMENT";
   return null;
 };
 
 function fileFilter(req, file, cb) {
   if (kindOf(file.mimetype)) cb(null, true);
-  else cb(new Error("Chat attachments must be an image, a video or an audio clip"));
+  else cb(new Error("Chat attachments must be a photo, video, audio clip or document"));
 }
 
 // Grouped by thread participant so one person's uploads never mix with the
@@ -42,6 +61,22 @@ function filename(originalName) {
 function urlFor(req, businessId, userId, name) {
   const apiBase = process.env.API_BASE_URL || `${req.protocol}://${req.get("host")}`;
   return `${apiBase.replace(/\/$/, "")}/uploads/chat/${businessId}/${userId}/${name}`;
+}
+
+// Stickers ship with the app instead of being uploaded, so a sticker message
+// points at one bundled asset path and nothing else can.
+const STICKER_PATH = /^\/stickers\/[a-z0-9][a-z0-9-]{0,40}\.(png|svg)$/i;
+const isBundledSticker = (url) => typeof url === "string" && STICKER_PATH.test(url);
+
+// The name a document shows is whatever the sender's file system called it, so
+// it loses path separators and control characters before it is stored.
+function displayName(name) {
+  const clean = String(name || "")
+    .replace(/[\\/\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return clean || "Document";
 }
 
 // A message must never point at somebody's arbitrary URL — that would turn the
@@ -68,4 +103,8 @@ function assertOwnUpload(req, url) {
   return parsed.pathname;
 }
 
-module.exports = { ALLOWED, MAX_BYTES, kindOf, fileFilter, dirFor, filename, urlFor, assertOwnUpload };
+module.exports = {
+  ALLOWED, MAX_BYTES, DOCUMENT_MAX_BYTES,
+  kindOf, fileFilter, dirFor, filename, urlFor, assertOwnUpload,
+  isBundledSticker, displayName,
+};

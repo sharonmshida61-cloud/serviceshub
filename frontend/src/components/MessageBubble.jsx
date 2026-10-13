@@ -3,9 +3,15 @@ import { useLanguage } from "../context/LanguageContext.jsx";
 import { directionsUrl, embedUrl, hasCoords } from "../utils/geolocation.js";
 import Icon from "./Icon.jsx";
 
-const LABEL = { IMAGE: "Photo", VIDEO: "Video", AUDIO: "Voice message" };
+const LABEL = { IMAGE: "Photo", VIDEO: "Video", AUDIO: "Voice message", STICKER: "Sticker", DOCUMENT: "Document" };
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const hhmm = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const sizeLabel = (bytes) => {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
 
 // Files on this server can disappear (Vercel's /tmp is wiped on cold starts), so
 // every attachment has to say so plainly instead of showing a broken frame.
@@ -24,6 +30,22 @@ function Media({ message, onBroken }) {
 
   if (message.mediaKind === "IMAGE") {
     return <a className="msg-media-link" href={url} target="_blank" rel="noreferrer"><img className="msg-media" src={url} alt="Photo attachment" loading="lazy" onError={fail} /></a>;
+  }
+  if (message.mediaKind === "STICKER") {
+    return <img className="msg-sticker" src={url} alt="Sticker" loading="lazy" onError={fail} />;
+  }
+  if (message.mediaKind === "DOCUMENT") {
+    const name = message.mediaName || "Document";
+    return (
+      <a className="msg-doc" href={url} target="_blank" rel="noreferrer" download={name}>
+        <span className="msg-doc-icon"><Icon name="document" size={22} /></span>
+        <span className="msg-doc-meta">
+          <strong>{name}</strong>
+          <span>{sizeLabel(message.mediaSize) || "File"}</span>
+        </span>
+        <span className="msg-doc-save"><Icon name="download" size={18} /></span>
+      </a>
+    );
   }
   if (message.mediaKind === "VIDEO") {
     return <video className="msg-media" src={url} controls preload="metadata" playsInline onError={fail} />;
@@ -89,14 +111,18 @@ export default function MessageBubble({ message, mine }) {
     return <span className="msg-text">{message.content}</span>;
   };
 
-  const kind = message.mediaKind ? "msg-bubble--media" : message.liveShare ? "msg-bubble--live" : "";
+  // A sticker is the picture itself and a document names its own file, so
+  // neither wants the caption bar a photo or a voice note gets.
+  const media = message.mediaKind;
+  const bare = media === "STICKER" || media === "DOCUMENT";
+  const kind = media ? (bare ? `msg-bubble--${media.toLowerCase()}` : "msg-bubble--media") : message.liveShare ? "msg-bubble--live" : "";
   const isLoc = !!message.liveShare || hasCoords(message);
 
   return (
     <div className={`msg-bubble ${mine ? "mine" : "theirs"} ${isLoc ? "msg-bubble--loc" : ""} ${kind}`}>
-      {message.mediaKind && <div className="msg-media-tag">{LABEL[message.mediaKind]}</div>}
+      {media && !bare && <div className="msg-media-tag">{LABEL[media]}</div>}
       {body()}
-      {message.mediaKind && message.content && <div className="msg-loc-note">{message.content}</div>}
+      {media && message.content && <div className="msg-loc-note">{message.content}</div>}
       <div className="msg-time">{time}</div>
     </div>
   );

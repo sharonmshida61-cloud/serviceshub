@@ -42,7 +42,11 @@ router.post("/", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
 router.get("/mine", requireAuth, async (req, res) => {
   const reviews = await prisma.review.findMany({
     where: { customerId: req.user.id },
-    include: { business: { select: { id: true, name: true } } },
+    include: {
+      business: {
+        select: { id: true, name: true, city: true, latitude: true, longitude: true },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
   res.json(reviews);
@@ -92,6 +96,37 @@ router.patch("/:id/reply", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), 
   }
   const updated = await prisma.review.update({ where: { id: req.params.id }, data: { ownerReply } });
   res.json(updated);
+});
+
+// Customer updates their own review (rating + comment)
+router.patch("/:id", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
+  const { rating, comment } = req.body || {};
+  if (rating !== undefined && (rating < 1 || rating > 5)) {
+    return res.status(400).json({ error: "rating must be between 1 and 5" });
+  }
+
+  const review = await prisma.review.findUnique({ where: { id: req.params.id } });
+  if (!review) return res.status(404).json({ error: "Review not found" });
+  if (review.customerId !== req.user.id) return res.status(403).json({ error: "Not your review" });
+
+  const data = {};
+  if (rating !== undefined) data.rating = rating;
+  if (comment !== undefined) data.comment = comment;
+
+  const updated = await prisma.review.update({ where: { id: req.params.id }, data });
+  await recomputeRating(review.businessId);
+  res.json(updated);
+});
+
+// Customer deletes their own review
+router.delete("/:id", requireAuth, requireRole("CUSTOMER"), async (req, res) => {
+  const review = await prisma.review.findUnique({ where: { id: req.params.id } });
+  if (!review) return res.status(404).json({ error: "Review not found" });
+  if (review.customerId !== req.user.id) return res.status(403).json({ error: "Not your review" });
+
+  await prisma.review.delete({ where: { id: req.params.id } });
+  await recomputeRating(review.businessId);
+  res.json({ ok: true });
 });
 
 module.exports = router;

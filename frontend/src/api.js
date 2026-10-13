@@ -115,6 +115,7 @@ export const api = {
   businessCustomers: (businessId) => request(`/businesses/${businessId}/customers`),
   updateBookingStatus: (id, status) => request(`/bookings/${id}/status`, { method: "PATCH", body: { status } }),
   rescheduleBooking: (id, payload) => request(`/bookings/${id}`, { method: "PATCH", body: payload }),
+  updateBookingNotes: (id, notes) => request(`/bookings/${id}/notes`, { method: "PATCH", body: { notes } }),
   deleteBooking: (id) => request(`/bookings/${id}`, { method: "DELETE" }),
 
   // payments
@@ -137,6 +138,8 @@ export const api = {
   myReviews: () => request("/reviews/mine"),
   featuredReviews: () => request("/reviews/featured", { auth: false }),
   businessReviews: (businessId) => request(`/reviews/business/${businessId}`, { auth: false }),
+  updateReview: (id, payload) => request(`/reviews/${id}`, { method: "PATCH", body: payload }),
+  deleteReview: (id) => request(`/reviews/${id}`, { method: "DELETE" }),
   replyToReview: (id, ownerReply) => request(`/reviews/${id}/reply`, { method: "PATCH", body: { ownerReply } }),
 
   // admin
@@ -196,7 +199,24 @@ export const api = {
   platformAnalytics: () => request("/analytics/platform"),
 
   // AI smart match
-  smartMatch: (query) => request("/smartmatch", { method: "POST", body: { query } }),
+  smartMatch: (query, file) => {
+    if (file) {
+      const form = new FormData();
+      form.append("query", query);
+      form.append("file", file);
+      const token = readToken();
+      return fetch(`${BASE_URL}/smartmatch`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: form,
+      }).then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+        return data;
+      });
+    }
+    return request("/smartmatch", { method: "POST", body: { query } });
+  },
   smartMatchHistory: () => request("/smartmatch/history"),
 
   // waiting list

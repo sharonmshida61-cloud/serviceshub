@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
+import { StarInput } from "../components/StarRating.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell from "../components/DashboardShell.jsx";
 import Icon from "../components/Icon.jsx";
-import AiFinder from "../components/AiFinder.jsx";
 import { buckets, ChartPanel, countByBucket, DonutPanel, SERIES, StatCard } from "../components/DashboardPanels.jsx";
 import BookingsPanel from "../components/BookingsPanel.jsx";
 import MessagesPanel from "../components/MessagesPanel.jsx";
 import { BrowsePanel } from "./Browse.jsx";
 import { SettingsPanel } from "./Settings.jsx";
 import { COUNTRIES } from "../utils/countries.js";
+import { directionsUrl } from "../utils/geolocation.js";
 
 const NAV = [
   { key: "home", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Your bookings, saved providers and activity at a glance." },
@@ -85,10 +86,7 @@ export default function CustomerDashboard() {
       )}
 
       {section === "browse" && (
-        <>
-          <AiFinder />
-          <BrowsePanel embed initialCategory={browseSeed.category} initialQuery={browseSeed.q} />
-        </>
+        <BrowsePanel embed initialCategory={browseSeed.category} initialQuery={browseSeed.q} />
       )}
 
       {section === "messages" && <MessagesPanel />}
@@ -332,28 +330,252 @@ function iconFor(icon) {
   return map[icon] || "storefront";
 }
 
+// ── Reusable ⋯ dropdown for reviews table ─────────────────────────────────
+function ReviewActionsMenu({ busy, children }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handle(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [open]);
+
+  return (
+    <div className="bk-actions-wrap" ref={ref}>
+      <button
+        type="button"
+        className="bk-actions-trigger"
+        disabled={busy}
+        aria-label="Review actions"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+          fill="currentColor" stroke="none" aria-hidden="true">
+          <circle cx="5"  cy="12" r="2"/>
+          <circle cx="12" cy="12" r="2"/>
+          <circle cx="19" cy="12" r="2"/>
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="bk-actions-menu"
+          role="menu"
+          onClick={() => setOpen(false)}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MyReviews() {
-  const [items, setItems] = useState(null);
-  useEffect(() => { api.myReviews().then(setItems).catch(() => setItems([])); }, []);
-  if (!items) return <p>Loading…</p>;
+  const [items, setItems]   = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [error,  setError]  = useState("");
+
+  // Drawer state
+  const [openId, setOpenId]     = useState(null);
+  const [drawerType, setDrawer] = useState("");   // "edit-review" | "edit-notes"
+  const [rating,  setRating]    = useState(5);
+  const [comment, setComment]   = useState("");
+  const [notes,   setNotes]     = useState("");
+
+  function load() {
+    api.myReviews().then(setItems).catch(() => setItems([]));
+  }
+  useEffect(load, []);
+
+  function openDrawer(id, type, init = {}) {
+    if (openId === id && drawerType === type) { setOpenId(null); setDrawer(""); return; }
+    setOpenId(id);
+    setDrawer(type);
+    if (init.rating  !== undefined) setRating(init.rating);
+    if (init.comment !== undefined) setComment(init.comment);
+    if (init.notes   !== undefined) setNotes(init.notes);
+  }
+
+  function closeDrawer() { setOpenId(null); setDrawer(""); }
+
+  async function run(id, fn, done) {
+    setBusyId(id);
+    closeDrawer();
+    setNotice("");
+    setError("");
+    try {
+      await fn();
+      setNotice(done);
+      load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function saveReview(r) {
+    run(r.id, () => api.updateReview(r.id, { rating, comment }), "Review updated.");
+  }
+
+  function deleteReview(r) {
+    if (!window.confirm(`Delete your review for "${r.business?.name}"? This cannot be undone.`)) return;
+    run(r.id, () => api.deleteReview(r.id), "Review deleted.");
+  }
+
+  function saveNotes(r) {
+    // Notes live on the booking — patch by bookingId
+    run(r.id, () => api.updateBookingNotes(r.bookingId, notes || null), "Notes updated.");
+  }
+
+  if (!items) return <p style={{ padding: "20px" }}>Loading…</p>;
 
   return (
     <div className="panel">
-      <div className="panel-head"><h3>My Reviews ({items.length})</h3></div>
+      <div className="panel-head">
+        <h3><Icon name="star" size={17} />My Reviews ({items.length})</h3>
+      </div>
+
+      {notice && <div className="alert alert-success" style={{ margin: "0 20px 0" }}>{notice}</div>}
+      {error  && <div className="alert alert-error"   style={{ margin: "0 20px 0" }}>{error}</div>}
+
       <div className="panel-body flush">
-        {items.length === 0 && <p style={{ padding: "18px 20px", margin: 0 }}>You haven't written any reviews yet. Review a completed booking to help others choose.</p>}
+        {items.length === 0 && (
+          <p style={{ padding: "18px 20px", margin: 0 }}>
+            You haven't written any reviews yet. Review a completed booking to help others choose.
+          </p>
+        )}
+
         {items.length > 0 && (
-          <table className="data-table">
-            <thead><tr><th>Business</th><th>Rating</th><th>Comment</th><th>Date</th></tr></thead>
+          <table className="data-table reviews-table">
+            <thead>
+              <tr>
+                <th>Business</th>
+                <th>Rating</th>
+                <th>Comment</th>
+                <th>Date</th>
+                <th style={{ width: 42 }}></th>
+              </tr>
+            </thead>
             <tbody>
-              {items.map((r) => (
-                <tr key={r.id}>
-                  <td><Link to={`/business/${r.businessId}`}>{r.business?.name}</Link></td>
-                  <td><StarDisplay rating={r.rating} /></td>
-                  <td style={{ maxWidth: 360 }}>{r.comment || "—"}</td>
-                  <td style={{ fontSize: "0.8rem", color: "var(--ink-2)" }}>{new Date(r.createdAt).toLocaleDateString()}</td>
-                </tr>
-              ))}
+              {items.map((r) => {
+                const isOpen = openId === r.id;
+                const busy   = busyId === r.id;
+                const hasCoords = r.business?.latitude != null;
+
+                return (
+                  <Fragment key={r.id}>
+                    {/* ── Main row ── */}
+                    <tr className={isOpen ? "row-open" : ""}>
+                      <td>
+                        <Link to={`/business/${r.businessId}`} className="rv-biz-link">
+                          {r.business?.name}
+                        </Link>
+                        {r.business?.city && (
+                          <span className="rv-city">📍 {r.business.city}</span>
+                        )}
+                      </td>
+                      <td><StarDisplay rating={r.rating} /></td>
+                      <td className="rv-comment">{r.comment || <span style={{ opacity: 0.4 }}>—</span>}</td>
+                      <td style={{ fontSize:"0.8rem", color:"var(--dash-fg-2)", whiteSpace:"nowrap" }}>
+                        {new Date(r.createdAt).toLocaleDateString()}
+                      </td>
+                      <td>
+                        {/* ── Actions dropdown ── */}
+                        <ReviewActionsMenu busy={busy}>
+                          <button className="bk-menu-item" onClick={() =>
+                            openDrawer(r.id, "edit-review", { rating: r.rating, comment: r.comment || "" })}>
+                            <span className="bk-menu-icon">✏️</span>
+                            {isOpen && drawerType === "edit-review" ? "Close" : "Edit review"}
+                          </button>
+
+                          {r.bookingId && (
+                            <button className="bk-menu-item" onClick={() =>
+                              openDrawer(r.id, "edit-notes", { notes: "" })}>
+                              <span className="bk-menu-icon">📝</span>
+                              {isOpen && drawerType === "edit-notes" ? "Close" : "Edit booking notes"}
+                            </button>
+                          )}
+
+                          {hasCoords && (
+                            <a
+                              className="bk-menu-item"
+                              href={directionsUrl({ latitude: r.business.latitude, longitude: r.business.longitude })}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <span className="bk-menu-icon">🗺️</span>
+                              Get directions
+                            </a>
+                          )}
+
+                          <div className="bk-menu-divider" />
+
+                          <button className="bk-menu-item bk-menu-item--danger" onClick={() => deleteReview(r)}>
+                            <span className="bk-menu-icon">🗑</span>
+                            Delete review
+                          </button>
+                        </ReviewActionsMenu>
+                      </td>
+                    </tr>
+
+                    {/* ── Drawer: Edit review ── */}
+                    {isOpen && drawerType === "edit-review" && (
+                      <tr className="row-drawer">
+                        <td colSpan={5}>
+                          <div className="booking-drawer">
+                            <div className="booking-drawer-title">✏️ Edit your review for {r.business?.name}</div>
+                            <div className="booking-drawer-body booking-drawer-body--col">
+                              <StarInput value={rating} onChange={setRating} />
+                              <textarea
+                                rows={3}
+                                placeholder="Update your comment (optional)"
+                                value={comment}
+                                onChange={(e) => setComment(e.target.value)}
+                              />
+                              <div style={{ display:"flex", gap:8 }}>
+                                <button className="btn btn-primary btn-sm" disabled={busy}
+                                  onClick={() => saveReview(r)}>Save changes</button>
+                                <button className="btn btn-outline btn-sm" onClick={closeDrawer}>Cancel</button>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* ── Drawer: Edit booking notes ── */}
+                    {isOpen && drawerType === "edit-notes" && (
+                      <tr className="row-drawer">
+                        <td colSpan={5}>
+                          <div className="booking-drawer">
+                            <div className="booking-drawer-title">📝 Edit booking notes for {r.business?.name}</div>
+                            <div className="booking-drawer-body booking-drawer-body--col">
+                              <textarea
+                                rows={3}
+                                placeholder="Any instructions or details for the provider…"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                              />
+                              <div style={{ display:"flex", gap:8 }}>
+                                <button className="btn btn-primary btn-sm" disabled={busy}
+                                  onClick={() => saveNotes(r)}>Save notes</button>
+                                <button className="btn btn-outline btn-sm" onClick={closeDrawer}>Cancel</button>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}

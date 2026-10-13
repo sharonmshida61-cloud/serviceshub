@@ -9,6 +9,8 @@ import Icon from "../components/Icon.jsx";
 import { buckets, ChartPanel, DonutPanel, SERIES, StatCard, sumByBucket } from "../components/DashboardPanels.jsx";
 import { SettingsPanel as AccountSettingsPanel } from "./Settings.jsx";
 import LocationPicker from "../components/LocationPicker.jsx";
+import CitySelect from "../components/CitySelect.jsx";
+import useCities from "../hooks/useCities.js";
 import MessageBubble from "../components/MessageBubble.jsx";
 import ChatComposer from "../components/ChatComposer.jsx";
 import useChatThread, { stickToBottom } from "../hooks/useChatThread.js";
@@ -535,6 +537,7 @@ function ApprovalRequired() {
 }
 
 function NewBusinessForm({ categories, onCreated, onCancel }) {
+  const cities = useCities();
   const [form, setForm] = useState({ name: "", description: "", categorySlug: "", city: "", address: "", phone: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -617,7 +620,7 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
           <textarea rows={3} placeholder="Tell customers what makes your business great…" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </div>
         <div className="grid grid-2">
-          <div className="field"><label>City</label><input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></div>
+          <div className="field"><label>City</label><CitySelect cities={cities} value={form.city} onChange={(city) => setForm((f) => ({ ...f, city }))} placeholder="Select your city…" showCounts={false} /></div>
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
@@ -1281,6 +1284,7 @@ function ReviewsPanel({ business }) {
 }
 
 function ListingDetailsPanel({ business, onChange }) {
+  const cities = useCities();
   const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "", latitude: business.latitude, longitude: business.longitude });
   const [attrs, setAttrs] = useState(business.attributes || {});
   const [saved, setSaved] = useState(false);
@@ -1302,7 +1306,7 @@ function ListingDetailsPanel({ business, onChange }) {
         <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
         <div className="field"><label>Description</label><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
         <div className="grid grid-2">
-          <div className="field"><label>City</label><input value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></div>
+          <div className="field"><label>City</label><CitySelect cities={cities} value={form.city} onChange={(city) => setForm((f) => ({ ...f, city }))} placeholder="Select your city…" showCounts={false} /></div>
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>

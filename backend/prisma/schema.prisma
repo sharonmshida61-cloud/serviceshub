@@ -170,6 +170,8 @@ model Message {
   mediaKind   String?
   mediaUrl    String?
   mediaSecs   Int?
+  mediaName   String?
+  mediaSize   Int?
   latitude    Float?
   longitude   Float?
   locationName String?

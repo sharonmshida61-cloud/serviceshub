@@ -94,7 +94,7 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   res.json(updated);
 });
 
-// Customer moves their own booking to a new time.
+// Customer moves their own booking to a new time, or reactivates a cancelled one.
 router.patch("/:id", requireAuth, async (req, res) => {
   const { scheduledAt, notes } = req.body || {};
   if (!scheduledAt) return res.status(400).json({ error: "scheduledAt is required" });
@@ -105,19 +105,37 @@ router.patch("/:id", requireAuth, async (req, res) => {
   const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (booking.customerId !== req.user.id) return res.status(403).json({ error: "Not your booking" });
-  if (!["PENDING", "CONFIRMED"].includes(booking.status)) {
+
+  const recoverable = ["PENDING", "CONFIRMED", "CANCELLED"];
+  if (!recoverable.includes(booking.status)) {
     return res.status(409).json({ error: `A ${booking.status.toLowerCase()} booking can no longer be moved` });
   }
   if (when.getTime() < Date.now()) return res.status(400).json({ error: "Choose a time in the future" });
 
-  // A provider already agreed to the old slot, so the new one needs approving again.
+  // Cancelled bookings are reactivated as PENDING so the provider approves the new slot.
+  // Confirmed bookings also drop back to PENDING when the time changes.
   const updated = await prisma.booking.update({
     where: { id: booking.id },
     data: {
       scheduledAt: when,
       ...(notes !== undefined ? { notes } : {}),
-      ...(booking.status === "CONFIRMED" ? { status: "PENDING" } : {}),
+      status: "PENDING",
     },
+    include: { service: true, business: true, payment: true, review: true },
+  });
+  res.json(updated);
+});
+
+// Customer updates notes on their booking (any status).
+router.patch("/:id/notes", requireAuth, async (req, res) => {
+  const { notes } = req.body || {};
+  const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+  if (booking.customerId !== req.user.id) return res.status(403).json({ error: "Not your booking" });
+
+  const updated = await prisma.booking.update({
+    where: { id: booking.id },
+    data: { notes: notes ?? null },
     include: { service: true, business: true, payment: true, review: true },
   });
   res.json(updated);
@@ -128,12 +146,15 @@ router.delete("/:id", requireAuth, async (req, res) => {
   const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
   if (!booking) return res.status(404).json({ error: "Booking not found" });
   if (booking.customerId !== req.user.id) return res.status(403).json({ error: "Not your booking" });
-  if (booking.status === "COMPLETED") return res.status(409).json({ error: "A completed booking cannot be deleted" });
 
-  await prisma.booking.update({
-    where: { id: booking.id },
-    data: { status: "CANCELLED", customerDeletedAt: new Date() },
-  });
+  // Completed bookings are soft-deleted from the customer's view only.
+  // Non-completed bookings are also cancelled first so the provider is aware.
+  const data = { customerDeletedAt: new Date() };
+  if (!["COMPLETED", "CANCELLED", "DECLINED"].includes(booking.status)) {
+    data.status = "CANCELLED";
+  }
+
+  await prisma.booking.update({ where: { id: booking.id }, data });
   res.json({ ok: true });
 });
 

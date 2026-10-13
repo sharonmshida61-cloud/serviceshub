@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="72" fill="#ffc9dc"/>
+  <circle cx="256" cy="272" r="166" fill="#ffffff"/>
+  <circle cx="256" cy="272" r="148" fill="#ffc93c"/>
+  <g fill="#e8455f">
+    <path transform="translate(214 242) scale(1.15)" d="M0 26C-30 4-22-22 0-8 22-22 30 4 0 26z"/>
+    <path transform="translate(298 242) scale(1.15)" d="M0 26C-30 4-22-22 0-8 22-22 30 4 0 26z"/>
+  </g>
+  <path d="M214 320q42 36 84 0" fill="none" stroke="#3a2a16" stroke-width="18" stroke-linecap="round"/>
+  <g fill="#f9889f" opacity=".5">
+    <ellipse cx="170" cy="330" rx="28" ry="16"/>
+    <ellipse cx="342" cy="330" rx="28" ry="16"/>
+  </g>
+  <path transform="translate(376 168) scale(.8)" fill="#e8455f" d="M0 26C-30 4-22-22 0-8 22-22 30 4 0 26z"/>
+  <path transform="translate(136 176) scale(.55)" fill="#e8455f" opacity=".8" d="M0 26C-30 4-22-22 0-8 22-22 30 4 0 26z"/>
+</svg>

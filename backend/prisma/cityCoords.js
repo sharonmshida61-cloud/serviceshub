@@ -1,12 +1,6 @@
-// The demo dataset uses invented city names, so they are anchored to real
-// Dar es Salaam neighbourhoods — that way a pinned business lands somewhere a
-// map and turn-by-turn directions can actually render.
-const CITY_CENTERS = {
-  Springfield: [-6.8, 39.2083],
-  Lakeview: [-6.772, 39.214],
-  Riverdale: [-6.824, 39.245],
-  Westside: [-6.79, 39.16],
-};
+const { CITIES, HUB_AREAS, BY_NAME } = require("../src/data/eastAfrica.js");
+
+const CITY_CENTERS = Object.fromEntries(CITIES.map((c) => [c.city, [c.latitude, c.longitude]]));
 
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
 
@@ -16,16 +10,29 @@ function hash(str) {
   return h;
 }
 
-// Deterministic ±400m offset so neighbouring listings don't stack on one pin.
+// Deterministic ±0.01° (about ±1.1 km) offset so neighbouring listings don't
+// stack on one pin but still sit inside the city their search asked for.
 function coordsFor(city, name) {
   const center = CITY_CENTERS[city];
   if (!center) return {};
   const h = hash(String(name));
-  const jitter = (n) => ((n % 2000) - 1000) / 250000;
+  const jitter = (n) => ((n % 20000) - 10000) / 1e6;
   return {
     latitude: round6(center[0] + jitter(h)),
     longitude: round6(center[1] + jitter(h >>> 3)),
   };
 }
 
-module.exports = { CITY_CENTERS, coordsFor };
+// Where a demo listing lives. Derived from its name so re-running the seed and
+// migrating existing rows agree without any ordering assumptions.
+function locationFor(name) {
+  const hubs = Object.keys(HUB_AREAS);
+  const h = hash(String(name));
+  const city = hubs[h % hubs.length];
+  const areas = HUB_AREAS[city];
+  const area = areas[(h >>> 5) % areas.length];
+  const plot = 1 + ((h >>> 9) % 240);
+  return { city, country: BY_NAME.get(city).country, address: `Plot ${plot}, ${area}` };
+}
+
+module.exports = { CITY_CENTERS, coordsFor, locationFor };

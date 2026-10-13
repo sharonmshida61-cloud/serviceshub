@@ -3,6 +3,7 @@ const prisma = require("../utils/prisma");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
 const { requireRole } = require("../middleware/role");
 const { readCoords } = require("../utils/coords");
+const { CITIES } = require("../data/eastAfrica");
 
 const router = express.Router();
 
@@ -74,10 +75,23 @@ router.get("/cities", async (req, res) => {
     counts.set(name, (counts.get(name) || 0) + 1);
   }
 
+  const known = new Set(CITIES.map((c) => c.city));
+  const options = [
+    ...CITIES.map(({ city, country }) => ({ city, country, count: counts.get(city) || 0 })),
+    // A listing can already sit somewhere outside the launch region; keep it
+    // searchable instead of hiding it from the picker.
+    ...[...counts]
+      .filter(([city]) => !known.has(city))
+      .map(([city, count]) => ({ city, country: null, count })),
+  ];
+
   res.json(
-    [...counts]
-      .map(([city, count]) => ({ city, count }))
-      .sort((a, b) => b.count - a.count || a.city.localeCompare(b.city))
+    options.sort(
+      (a, b) =>
+        String(a.country ?? "\uffff").localeCompare(String(b.country ?? "\uffff")) ||
+        b.count - a.count ||
+        a.city.localeCompare(b.city)
+    )
   );
 });
 

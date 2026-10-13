@@ -1,6 +1,43 @@
 const router = require("express").Router();
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const prisma = require("../utils/prisma");
 const { requireAuth } = require("../middleware/auth");
+const uploadRoot = require("../utils/uploadRoot");
+
+// ---------------------------------------------------------------------------
+// Multer — optional file attachment on smart-match queries
+// Files land in <uploadRoot>/smartmatch/<userId>/<timestamp>.<ext>
+// ---------------------------------------------------------------------------
+const smStorage = multer.diskStorage({
+  destination(req, file, cb) {
+    const dir = path.join(uploadRoot, "smartmatch", req.user?.id || "anon");
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename(req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase() || ".bin";
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+
+const ALLOWED_MIME = [
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif",
+  "video/mp4", "video/webm",
+  "audio/webm", "audio/ogg", "audio/mpeg", "audio/wav", "audio/mp4",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+const smUpload = multer({
+  storage: smStorage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter(req, file, cb) {
+    cb(null, ALLOWED_MIME.includes(file.mimetype));
+  },
+});
 
 // ---------------------------------------------------------------------------
 // CATEGORY KEYWORD MAP
@@ -129,15 +166,33 @@ function calcScore(business, parsed) {
 
 // ---------------------------------------------------------------------------
 // POST /api/smartmatch  — run a smart match search
+// Accepts application/json { query } OR multipart/form-data { query, file? }
 // ---------------------------------------------------------------------------
-router.post("/", requireAuth, async (req, res, next) => {
+router.post("/", requireAuth, smUpload.single("file"), async (req, res, next) => {
   try {
-    const { query } = req.body;
-    if (!query || !query.trim()) {
+    // Support both JSON body and multipart form
+    const query = req.body?.query;
+    if (!query || !String(query).trim()) {
+      if (req.file) fs.unlinkSync(req.file.path);
       return res.status(400).json({ error: "Query is required" });
     }
 
-    const parsed = parseQuery(query.trim());
+    // Attachment metadata (if a file was sent)
+    let attachment = null;
+    if (req.file) {
+      const apiBase = (process.env.API_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+      attachment = {
+        url: `${apiBase}/uploads/smartmatch/${req.user.id}/${req.file.filename}`,
+        mime: req.file.mimetype,
+        size: req.file.size,
+        kind: req.file.mimetype.startsWith("image/") ? "image"
+            : req.file.mimetype.startsWith("audio/") ? "audio"
+            : req.file.mimetype.startsWith("video/") ? "video"
+            : "document",
+      };
+    }
+
+    const parsed = parseQuery(String(query).trim());
 
     // ── Build DB filters (only what SQLite supports natively) ──────────────
     const where = { status: "APPROVED" };
@@ -185,7 +240,7 @@ router.post("/", requireAuth, async (req, res, next) => {
     const record = await prisma.smartMatchRequest.create({
       data: {
         userId:  req.user.id,
-        query:   query.trim(),
+        query:   String(query).trim(),
         parsed:  JSON.stringify(parsed),
         results: JSON.stringify(scored.map((b) => ({ id: b.id, score: b.matchScore }))),
       },
@@ -204,6 +259,7 @@ router.post("/", requireAuth, async (req, res, next) => {
     res.json({
       smartMatchId: record.id,
       understood,
+      attachment,
       results: scored,
       totalFound: scored.length,
       message:

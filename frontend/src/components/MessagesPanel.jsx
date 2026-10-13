@@ -8,14 +8,20 @@ import useChatThread, { stickToBottom } from "../hooks/useChatThread.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { describeMessage, timeAgo } from "../utils/chatSnippet.js";
 
+const hit = (row, term) =>
+  [row.name || row.businessName, row.city || row.businessCity, row.category?.name]
+    .some((part) => (part || "").toLowerCase().includes(term));
+
 // Provider inbox: one row per business the customer has talked to, plus a
-// starter list built from their bookings so a first message is possible too.
+// searchable directory so a first message to a brand new provider is possible.
 export default function MessagesPanel() {
   const { user } = useAuth();
   const [threads, setThreads] = useState(null);
   const [starters, setStarters] = useState([]);
   const [active, setActive] = useState(null);
   const [listError, setListError] = useState("");
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState(null);
   const { messages, error, push } = useChatThread(active?.businessId);
   const endRef = useRef(null);
 
@@ -39,8 +45,23 @@ export default function MessagesPanel() {
 
   useEffect(() => { stickToBottom(endRef.current); }, [messages]);
 
+  // Two characters is enough to tell a plumber from a cleaner, and the whole
+  // directory is searched per keystroke after that — so the call is debounced.
+  const term = query.trim();
+  useEffect(() => {
+    if (term.length < 2) { setFound(null); return undefined; }
+    let alive = true;
+    const timer = setTimeout(() => {
+      api.searchBusinesses({ q: term })
+        .then((rows) => { if (alive) setFound(rows); })
+        .catch(() => { if (alive) setFound([]); });
+    }, 250);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [term]);
+
   function open(thread) {
     setActive(thread);
+    setQuery("");
   }
 
   // The composer owns sending; this receives each message it posts.
@@ -55,6 +76,13 @@ export default function MessagesPanel() {
 
   const listed = new Set(threads.map((t) => t.businessId));
   const fresh = starters.filter((b) => !listed.has(b.id));
+  const lower = term.toLowerCase();
+  const shown = term ? threads.filter((t) => hit(t, lower)) : threads;
+  const shownFresh = term ? fresh.filter((b) => hit(b, lower)) : fresh;
+  // Anything already on screen is not repeated under "Providers on Nearby";
+  // anything not on screen stays reachable there, booked or not.
+  const onScreen = new Set([...shown.map((t) => t.businessId), ...shownFresh.map((b) => b.id)]);
+  const providers = (found || []).filter((b) => !onScreen.has(b.id));
 
   return (
     <div className="inbox">
@@ -63,11 +91,25 @@ export default function MessagesPanel() {
           <h3><Icon name="chat" size={17} />Conversations</h3>
           <span className="hint">{threads.length}</span>
         </div>
+        <div className="inbox-search">
+          <Icon name="search" size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search a chat, or find a provider to message"
+            aria-label="Search for someone to chat with"
+          />
+          {query && (
+            <button type="button" className="inbox-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
+              <Icon name="close" size={14} />
+            </button>
+          )}
+        </div>
         <div className="panel-body flush">
           {threads.length === 0 && fresh.length === 0 && (
-            <p className="inbox-empty">No conversations yet. Open a provider under Find Services and send the first message.</p>
+            <p className="inbox-empty">No conversations yet. Search for a provider above and send the first message.</p>
           )}
-          {threads.map((t) => (
+          {shown.map((t) => (
             <button type="button" key={t.businessId}
               className={`inbox-row${active?.businessId === t.businessId ? " active" : ""}`}
               onClick={() => open(t)}>
@@ -81,7 +123,7 @@ export default function MessagesPanel() {
               </span>
             </button>
           ))}
-          {fresh.map((b) => (
+          {shownFresh.map((b) => (
             <button type="button" key={b.id} className="inbox-row inbox-row--new"
               onClick={() => open({ businessId: b.id, businessName: b.name, businessCity: b.city })}>
               <span className="inbox-who">
@@ -91,6 +133,28 @@ export default function MessagesPanel() {
               <span className="inbox-snippet"><span className="inbox-text inbox-start">Start a chat →</span></span>
             </button>
           ))}
+
+          {term.length >= 2 && (found === null || providers.length > 0) && (
+            <div className="inbox-group">
+              <h4>{found === null ? "Searching the directory…" : "Providers on Nearby"}</h4>
+              {providers.map((b) => (
+                <button type="button" key={b.id} className="inbox-row inbox-row--new"
+                  onClick={() => open({ businessId: b.id, businessName: b.name, businessCity: b.city })}>
+                  <span className="inbox-who">
+                    <strong>{b.name}</strong>
+                    <span className="inbox-sub">
+                      {b.city || "—"} · {b.category?.name || "Provider"}
+                      {b.avgRating ? ` · ★ ${Number(b.avgRating).toFixed(1)}` : ""}
+                    </span>
+                  </span>
+                  <span className="inbox-snippet"><span className="inbox-text inbox-start">Start a chat →</span></span>
+                </button>
+              ))}
+            </div>
+          )}
+          {term.length >= 2 && found !== null && providers.length === 0 && shown.length === 0 && shownFresh.length === 0 && (
+            <p className="inbox-empty">No provider matches “{term}”.</p>
+          )}
         </div>
       </section>
 

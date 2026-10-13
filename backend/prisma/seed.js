@@ -1,7 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
-const { coordsFor } = require("./cityCoords");
+const { coordsFor, locationFor } = require("./cityCoords");
 
 const CATEGORIES = [
   { name: "Barbers",            slug: "barbers",            icon: "scissors",  schema: [{ key: "chairCount", label: "Number of chairs", type: "number" }, { key: "walkInsWelcome", label: "Walk-ins welcome", type: "boolean" }] },
@@ -33,7 +33,7 @@ const BUSINESSES = [
     slug: "barbers",
     name: "Fresh Fade Barbershop",
     description: "Classic cuts and modern fades in the heart of downtown. Walk-ins always welcome.",
-    address: "12 Market St", city: "Springfield", phone: "555-0101", email: "hello@freshfade.test",
+    phone: "555-0101", email: "hello@freshfade.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { chairCount: 4, walkInsWelcome: true },
     services: [
@@ -46,7 +46,7 @@ const BUSINESSES = [
     slug: "barbers",
     name: "Kings & Cuts",
     description: "Old-school vibes, new-school precision. Straight razor shaves a specialty.",
-    address: "55 Broad St", city: "Riverdale", phone: "555-0111", email: "kings@kingscuts.test",
+    phone: "555-0111", email: "kings@kingscuts.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { chairCount: 3, walkInsWelcome: true },
     services: [
@@ -59,7 +59,7 @@ const BUSINESSES = [
     slug: "barbers",
     name: "The Grooming Lab",
     description: "Premium men's grooming with organic products. By appointment and walk-ins.",
-    address: "88 Oak Ave", city: "Lakeview", phone: "555-0122", email: "lab@groominglab.test",
+    phone: "555-0122", email: "lab@groominglab.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { chairCount: 2, walkInsWelcome: false },
     services: [
@@ -71,7 +71,7 @@ const BUSINESSES = [
     slug: "barbers",
     name: "Barberia Del Rey",
     description: "Latino-style barbershop offering fades, designs and eyebrow threading.",
-    address: "202 Main Plaza", city: "Westside", phone: "555-0133", email: "delrey@barberia.test",
+    phone: "555-0133", email: "delrey@barberia.test",
     avgRating: 4.6, reviewCount: 1,
     attributes: { chairCount: 6, walkInsWelcome: true },
     services: [
@@ -87,7 +87,7 @@ BUSINESSES.push(
     slug: "hair-salons",
     name: "Glow Studio",
     description: "Award-winning hair studio specialising in balayage, keratin and silk press treatments.",
-    address: "34 Maple Dr", city: "Springfield", phone: "555-0201", email: "hello@glowstudio.test",
+    phone: "555-0201", email: "hello@glowstudio.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { specialties: "Balayage, Keratin Treatment, Silk Press" },
     services: [
@@ -100,7 +100,7 @@ BUSINESSES.push(
     slug: "hair-salons",
     name: "The Curl Bar",
     description: "Curl specialists. We love every curl pattern from 2a to 4c.",
-    address: "19 Vine St", city: "Riverdale", phone: "555-0211", email: "curls@thecurlbar.test",
+    phone: "555-0211", email: "curls@thecurlbar.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { specialties: "Natural Hair, Braiding, Locs" },
     services: [
@@ -113,7 +113,7 @@ BUSINESSES.push(
     slug: "hair-salons",
     name: "Bliss Hair Lounge",
     description: "Full-service salon offering colour, cuts and extensions in a relaxed atmosphere.",
-    address: "77 Park Blvd", city: "Lakeview", phone: "555-0222", email: "hi@blisshair.test",
+    phone: "555-0222", email: "hi@blisshair.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { specialties: "Extensions, Color Correction, Highlights" },
     services: [
@@ -130,7 +130,7 @@ BUSINESSES.push(
     slug: "car-washes",
     name: "Sparkle Auto Wash",
     description: "Express and full-detail car washes using eco-friendly products.",
-    address: "1 Highway Loop", city: "Springfield", phone: "555-0301", email: "wash@sparkleauto.test",
+    phone: "555-0301", email: "wash@sparkleauto.test",
     avgRating: 4.7, reviewCount: 3,
     attributes: { vehicleSizes: "Sedan, SUV, Truck", hasVacuum: true },
     services: [
@@ -143,7 +143,7 @@ BUSINESSES.push(
     slug: "car-washes",
     name: "Crystal Clear Detailing",
     description: "Hand-wash specialists. Your car leaves spotless, guaranteed.",
-    address: "22 Commerce Rd", city: "Westside", phone: "555-0311", email: "detail@crystalclear.test",
+    phone: "555-0311", email: "detail@crystalclear.test",
     avgRating: 4.9, reviewCount: 2,
     attributes: { vehicleSizes: "All sizes", hasVacuum: true },
     services: [
@@ -156,7 +156,7 @@ BUSINESSES.push(
     slug: "car-washes",
     name: "Quick Shine Mobile Wash",
     description: "We come to you! Mobile car wash service at your home or office.",
-    address: "Mobile Service", city: "Riverdale", phone: "555-0322", email: "mobile@quickshine.test",
+    phone: "555-0322", email: "mobile@quickshine.test",
     avgRating: 4.6, reviewCount: 2,
     attributes: { vehicleSizes: "Sedan, SUV", hasVacuum: false },
     services: [
@@ -172,7 +172,7 @@ BUSINESSES.push(
     slug: "laundry",
     name: "FreshFold Laundry",
     description: "Drop-off laundry service with same-day and next-day options.",
-    address: "45 Wash Lane", city: "Springfield", phone: "555-0401", email: "fresh@freshfold.test",
+    phone: "555-0401", email: "fresh@freshfold.test",
     avgRating: 4.8, reviewCount: 3,
     attributes: { pickupDelivery: true, turnaroundHours: 24 },
     services: [
@@ -185,7 +185,7 @@ BUSINESSES.push(
     slug: "laundry",
     name: "White Glove Cleaners",
     description: "Premium dry cleaning, alterations and wedding dress preservation.",
-    address: "8 Prestige Blvd", city: "Lakeview", phone: "555-0411", email: "care@whiteglove.test",
+    phone: "555-0411", email: "care@whiteglove.test",
     avgRating: 4.9, reviewCount: 2,
     attributes: { pickupDelivery: true, turnaroundHours: 48 },
     services: [
@@ -198,7 +198,7 @@ BUSINESSES.push(
     slug: "laundry",
     name: "Suds & Spin",
     description: "Coin-op laundromat with attendant wash-and-fold service available.",
-    address: "101 Elm St", city: "Westside", phone: "555-0422", email: "info@sudsspin.test",
+    phone: "555-0422", email: "info@sudsspin.test",
     avgRating: 4.3, reviewCount: 2,
     attributes: { pickupDelivery: false, turnaroundHours: 4 },
     services: [
@@ -214,7 +214,7 @@ BUSINESSES.push(
     slug: "cleaning-services",
     name: "Amara Home Cleaning",
     description: "Detail-oriented residential and office cleaning. All supplies included.",
-    address: "88 Oak Ave", city: "Springfield", phone: "555-0202", email: "hello@amaraclean.test",
+    phone: "555-0202", email: "hello@amaraclean.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { propertyTypes: "Apartments, Houses, Offices", suppliesIncluded: true },
     services: [
@@ -227,7 +227,7 @@ BUSINESSES.push(
     slug: "cleaning-services",
     name: "EcoShine Cleaners",
     description: "100% eco-friendly products, safe for kids and pets.",
-    address: "30 Green Way", city: "Lakeview", phone: "555-0502", email: "eco@ecoshine.test",
+    phone: "555-0502", email: "eco@ecoshine.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { propertyTypes: "Houses, Condos", suppliesIncluded: true },
     services: [
@@ -239,7 +239,7 @@ BUSINESSES.push(
     slug: "cleaning-services",
     name: "Pro Office Cleaning",
     description: "Commercial office cleaning after hours, discreet and professional.",
-    address: "10 Business Park", city: "Riverdale", phone: "555-0512", email: "office@proclean.test",
+    phone: "555-0512", email: "office@proclean.test",
     avgRating: 4.6, reviewCount: 2,
     attributes: { propertyTypes: "Offices, Retail Shops, Warehouses", suppliesIncluded: true },
     services: [
@@ -256,7 +256,7 @@ BUSINESSES.push(
     slug: "plumbers",
     name: "QuickFix Plumbing",
     description: "Licensed plumbers available 7 days a week. No job too big or small.",
-    address: "77 Pipe Rd", city: "Springfield", phone: "555-0601", email: "fix@quickfixplumbing.test",
+    phone: "555-0601", email: "fix@quickfixplumbing.test",
     avgRating: 4.7, reviewCount: 3,
     attributes: { licensed: true, emergencyService: true },
     services: [
@@ -269,7 +269,7 @@ BUSINESSES.push(
     slug: "plumbers",
     name: "AquaFlow Plumbing",
     description: "Residential plumbing specialists — new installs to emergency repairs.",
-    address: "5 River Close", city: "Westside", phone: "555-0611", email: "flow@aquaflow.test",
+    phone: "555-0611", email: "flow@aquaflow.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { licensed: true, emergencyService: true },
     services: [
@@ -281,7 +281,7 @@ BUSINESSES.push(
     slug: "plumbers",
     name: "PipePro Services",
     description: "Commercial and industrial plumbing. Inspections and certifications available.",
-    address: "200 Industrial Way", city: "Lakeview", phone: "555-0622", email: "pro@pipepro.test",
+    phone: "555-0622", email: "pro@pipepro.test",
     avgRating: 4.5, reviewCount: 2,
     attributes: { licensed: true, emergencyService: false },
     services: [
@@ -297,7 +297,7 @@ BUSINESSES.push(
     slug: "electricians",
     name: "Bright Spark Electric",
     description: "Licensed electricians for residential and commercial installations.",
-    address: "14 Volt Ave", city: "Springfield", phone: "555-0701", email: "spark@brightspark.test",
+    phone: "555-0701", email: "spark@brightspark.test",
     avgRating: 4.8, reviewCount: 3,
     attributes: { licensed: true, commercialWork: true },
     services: [
@@ -310,7 +310,7 @@ BUSINESSES.push(
     slug: "electricians",
     name: "Watt's Up Electrical",
     description: "Solar, EV charger installs and general electrical work done right.",
-    address: "9 Solar St", city: "Lakeview", phone: "555-0711", email: "power@wattsup.test",
+    phone: "555-0711", email: "power@wattsup.test",
     avgRating: 4.9, reviewCount: 2,
     attributes: { licensed: true, commercialWork: false },
     services: [
@@ -323,7 +323,7 @@ BUSINESSES.push(
     slug: "electricians",
     name: "PowerLine Pro",
     description: "Commercial electricians for offices, retail and industrial units.",
-    address: "55 Commerce Park", city: "Riverdale", phone: "555-0722", email: "info@powerlinepro.test",
+    phone: "555-0722", email: "info@powerlinepro.test",
     avgRating: 4.6, reviewCount: 2,
     attributes: { licensed: true, commercialWork: true },
     services: [
@@ -339,7 +339,7 @@ BUSINESSES.push(
     slug: "mechanics",
     name: "Rev Auto Workshop",
     description: "Full-service auto repair. All makes and models welcome.",
-    address: "1 Gear Lane", city: "Springfield", phone: "555-0801", email: "rev@revauto.test",
+    phone: "555-0801", email: "rev@revauto.test",
     avgRating: 4.8, reviewCount: 3,
     attributes: { vehicleTypes: "Sedan, SUV, Hatchback", mobileService: false },
     services: [
@@ -352,7 +352,7 @@ BUSINESSES.push(
     slug: "mechanics",
     name: "Mobile Mechanic Mike",
     description: "Come-to-you mechanic. We fix your car at your home or office.",
-    address: "Mobile Service", city: "Lakeview", phone: "555-0811", email: "mike@mobilemike.test",
+    phone: "555-0811", email: "mike@mobilemike.test",
     avgRating: 4.9, reviewCount: 2,
     attributes: { vehicleTypes: "Most passenger vehicles", mobileService: true },
     services: [
@@ -364,7 +364,7 @@ BUSINESSES.push(
     slug: "mechanics",
     name: "German Auto Specialists",
     description: "BMW, Mercedes, Audi, VW experts. Genuine parts only.",
-    address: "88 Precision Dr", city: "Westside", phone: "555-0822", email: "german@gasauto.test",
+    phone: "555-0822", email: "german@gasauto.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { vehicleTypes: "BMW, Mercedes, Audi, VW", mobileService: false },
     services: [
@@ -381,7 +381,7 @@ BUSINESSES.push(
     slug: "photographers",
     name: "Lens & Light Studio",
     description: "Portrait, wedding and commercial photography. Stunning results every time.",
-    address: "33 Creative Quarter", city: "Springfield", phone: "555-0901", email: "hello@lenslight.test",
+    phone: "555-0901", email: "hello@lenslight.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { styles: "Portrait, Wedding, Commercial", travelsForShoots: true },
     services: [
@@ -394,7 +394,7 @@ BUSINESSES.push(
     slug: "photographers",
     name: "Click & Capture",
     description: "Event, product and real-estate photography at competitive rates.",
-    address: "7 Studio Rd", city: "Riverdale", phone: "555-0911", email: "click@clickcapture.test",
+    phone: "555-0911", email: "click@clickcapture.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { styles: "Event, Product, Real Estate", travelsForShoots: true },
     services: [
@@ -406,7 +406,7 @@ BUSINESSES.push(
     slug: "photographers",
     name: "Golden Hour Photography",
     description: "Lifestyle and engagement shoots. Outdoor locations our specialty.",
-    address: "Park Central", city: "Lakeview", phone: "555-0922", email: "golden@goldenhour.test",
+    phone: "555-0922", email: "golden@goldenhour.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { styles: "Lifestyle, Engagement, Maternity", travelsForShoots: true },
     services: [
@@ -423,7 +423,7 @@ BUSINESSES.push(
     slug: "tutors",
     name: "Ace Tutoring Centre",
     description: "Helping students from Grade 1 to Grade 12 excel in Maths and Sciences.",
-    address: "22 Learning Lane", city: "Springfield", phone: "555-1001", email: "ace@acetutoring.test",
+    phone: "555-1001", email: "ace@acetutoring.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { subjects: "Mathematics, Physical Science, Accounting", gradeLevel: "Grade 8-12" },
     services: [
@@ -436,7 +436,7 @@ BUSINESSES.push(
     slug: "tutors",
     name: "Bright Minds Online",
     description: "Online tutoring for primary and high school — all subjects.",
-    address: "Online", city: "Remote", phone: "555-1011", email: "learn@brightminds.test",
+    phone: "555-1011", email: "learn@brightminds.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { subjects: "All Major Subjects", gradeLevel: "Grade 1-12" },
     services: [
@@ -448,7 +448,7 @@ BUSINESSES.push(
     slug: "tutors",
     name: "Language Lab",
     description: "Foreign language lessons: Spanish, French, Mandarin and more.",
-    address: "5 Lingua Square", city: "Westside", phone: "555-1022", email: "hola@languagelab.test",
+    phone: "555-1022", email: "hola@languagelab.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { subjects: "Spanish, French, Mandarin, German", gradeLevel: "All ages" },
     services: [
@@ -465,7 +465,7 @@ BUSINESSES.push(
     slug: "tailors",
     name: "Stitch Perfect Tailors",
     description: "Bespoke suits, dresses and alterations. Est. 2008.",
-    address: "40 Thread St", city: "Springfield", phone: "555-1101", email: "stitch@stitchperfect.test",
+    phone: "555-1101", email: "stitch@stitchperfect.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { garmentTypes: "Suits, Dresses, Shirts, Pants", rushService: true },
     services: [
@@ -478,7 +478,7 @@ BUSINESSES.push(
     slug: "tailors",
     name: "Fabrique Couture",
     description: "High fashion alterations and bespoke gowns for weddings and events.",
-    address: "15 Fashion Row", city: "Lakeview", phone: "555-1111", email: "fab@fabrique.test",
+    phone: "555-1111", email: "fab@fabrique.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { garmentTypes: "Gowns, Wedding Dresses, Evening Wear", rushService: false },
     services: [
@@ -490,7 +490,7 @@ BUSINESSES.push(
     slug: "tailors",
     name: "The Tailor's Den",
     description: "Affordable everyday alterations done quickly and with care.",
-    address: "9 Market Row", city: "Riverdale", phone: "555-1122", email: "den@tailorsden.test",
+    phone: "555-1122", email: "den@tailorsden.test",
     avgRating: 4.5, reviewCount: 2,
     attributes: { garmentTypes: "All garments", rushService: true },
     services: [
@@ -507,7 +507,7 @@ BUSINESSES.push(
     slug: "fitness-trainers",
     name: "Iron Will Personal Training",
     description: "Results-driven personal training for weight loss, muscle gain and overall fitness.",
-    address: "10 Fitness Blvd", city: "Springfield", phone: "555-1201", email: "train@ironwill.test",
+    phone: "555-1201", email: "train@ironwill.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { specialties: "Weight Loss, Muscle Gain, Athletic Performance", inHomeSessions: false },
     services: [
@@ -520,7 +520,7 @@ BUSINESSES.push(
     slug: "fitness-trainers",
     name: "Move With Maria",
     description: "In-home personal training. Yoga, Pilates and functional fitness.",
-    address: "Home Service", city: "Lakeview", phone: "555-1211", email: "maria@movewithmaria.test",
+    phone: "555-1211", email: "maria@movewithmaria.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { specialties: "Yoga, Pilates, Functional Fitness", inHomeSessions: true },
     services: [
@@ -532,7 +532,7 @@ BUSINESSES.push(
     slug: "fitness-trainers",
     name: "Box & Burn Fitness",
     description: "Boxing-inspired HIIT training. Get fit and have fun doing it.",
-    address: "77 Ring Rd", city: "Westside", phone: "555-1222", email: "box@boxandburn.test",
+    phone: "555-1222", email: "box@boxandburn.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { specialties: "Boxing, HIIT, Cardio Conditioning", inHomeSessions: false },
     services: [
@@ -548,7 +548,7 @@ BUSINESSES.push(
     slug: "event-planners",
     name: "Grand Events Co.",
     description: "Full-service event planning for weddings, corporate functions and parties.",
-    address: "5 Occasion Ave", city: "Springfield", phone: "555-1301", email: "plan@grandevents.test",
+    phone: "555-1301", email: "plan@grandevents.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { eventTypes: "Weddings, Corporate, Birthday, Gala", maxGuestCapacity: 500 },
     services: [
@@ -561,7 +561,7 @@ BUSINESSES.push(
     slug: "event-planners",
     name: "Party Pros",
     description: "Kids parties, birthdays and intimate gatherings handled with creativity.",
-    address: "22 Balloon St", city: "Riverdale", phone: "555-1311", email: "party@partypros.test",
+    phone: "555-1311", email: "party@partypros.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { eventTypes: "Kids Parties, Birthdays, Baby Showers", maxGuestCapacity: 100 },
     services: [
@@ -573,7 +573,7 @@ BUSINESSES.push(
     slug: "event-planners",
     name: "Luxe Affairs",
     description: "Luxury weddings and high-end gala events. Exclusive vendor network.",
-    address: "1 Diamond Rd", city: "Lakeview", phone: "555-1322", email: "luxe@luxeaffairs.test",
+    phone: "555-1322", email: "luxe@luxeaffairs.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { eventTypes: "Luxury Weddings, Galas, VIP Events", maxGuestCapacity: 1000 },
     services: [
@@ -589,7 +589,7 @@ BUSINESSES.push(
     slug: "massage-therapists",
     name: "Tranquil Touch Massage",
     description: "Licensed massage therapists offering relaxation and therapeutic treatments.",
-    address: "88 Serenity Blvd", city: "Springfield", phone: "555-1401", email: "relax@tranquiltouch.test",
+    phone: "555-1401", email: "relax@tranquiltouch.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { modalities: "Swedish, Deep Tissue, Hot Stone, Aromatherapy", licensed: true },
     services: [
@@ -602,7 +602,7 @@ BUSINESSES.push(
     slug: "massage-therapists",
     name: "Revive Sports Therapy",
     description: "Sports massage and injury rehabilitation for athletes and active people.",
-    address: "12 Athletics Way", city: "Lakeview", phone: "555-1411", email: "revive@revivesports.test",
+    phone: "555-1411", email: "revive@revivesports.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { modalities: "Sports Massage, Trigger Point, Myofascial Release", licensed: true },
     services: [
@@ -614,7 +614,7 @@ BUSINESSES.push(
     slug: "massage-therapists",
     name: "Zen Mobile Massage",
     description: "Mobile massage — we bring the spa to your home or hotel.",
-    address: "Mobile Service", city: "Westside", phone: "555-1422", email: "zen@zenmobile.test",
+    phone: "555-1422", email: "zen@zenmobile.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { modalities: "Swedish, Prenatal, Couples Massage", licensed: true },
     services: [
@@ -631,7 +631,7 @@ BUSINESSES.push(
     slug: "freelancers",
     name: "Digital Craft Studio",
     description: "Full-stack web development, UI/UX design and mobile apps.",
-    address: "Online", city: "Remote", phone: "555-1501", email: "hello@digitalcraft.test",
+    phone: "555-1501", email: "hello@digitalcraft.test",
     avgRating: 4.9, reviewCount: 3,
     attributes: { skillTags: "React, Node.js, UI/UX, Mobile Apps", remoteOnly: true },
     services: [
@@ -644,7 +644,7 @@ BUSINESSES.push(
     slug: "freelancers",
     name: "Wordsmith Content Agency",
     description: "SEO copywriting, blog posts, social media and email campaigns.",
-    address: "Online", city: "Remote", phone: "555-1511", email: "write@wordsmith.test",
+    phone: "555-1511", email: "write@wordsmith.test",
     avgRating: 4.8, reviewCount: 2,
     attributes: { skillTags: "Copywriting, SEO, Social Media, Email Marketing", remoteOnly: true },
     services: [
@@ -657,7 +657,7 @@ BUSINESSES.push(
     slug: "freelancers",
     name: "PixelForge Design",
     description: "Logo design, brand identity, illustrations and print collateral.",
-    address: "Online", city: "Remote", phone: "555-1522", email: "design@pixelforge.test",
+    phone: "555-1522", email: "design@pixelforge.test",
     avgRating: 4.7, reviewCount: 2,
     attributes: { skillTags: "Logo Design, Branding, Illustration, Print", remoteOnly: false },
     services: [
@@ -674,7 +674,7 @@ BUSINESSES.push(
     slug: "home-repair",
     name: "HandyDave Home Repairs",
     description: "General handyman for all household repairs, assembly and installations.",
-    address: "31 Tool Terrace", city: "Springfield", phone: "555-1601", email: "dave@handydave.test",
+    phone: "555-1601", email: "dave@handydave.test",
     avgRating: 4.8, reviewCount: 3,
     attributes: { specialties: "Drywall, Painting, Fixtures, Assembly", licensed: false },
     services: [
@@ -687,7 +687,7 @@ BUSINESSES.push(
     slug: "home-repair",
     name: "Build Right Contractors",
     description: "Licensed and insured contractors for renovations, tiling and carpentry.",
-    address: "66 Build Ave", city: "Lakeview", phone: "555-1611", email: "build@buildright.test",
+    phone: "555-1611", email: "build@buildright.test",
     avgRating: 4.9, reviewCount: 2,
     attributes: { specialties: "Renovations, Tiling, Carpentry, Drywall", licensed: true },
     services: [
@@ -700,7 +700,7 @@ BUSINESSES.push(
     slug: "home-repair",
     name: "Fix It Fast Services",
     description: "Small repairs done quickly. Locks, doors, windows, gutters.",
-    address: "4 Rapid Close", city: "Riverdale", phone: "555-1622", email: "fix@fixitfast.test",
+    phone: "555-1622", email: "fix@fixitfast.test",
     avgRating: 4.6, reviewCount: 2,
     attributes: { specialties: "Locks, Doors, Windows, Gutters, Minor Repairs", licensed: false },
     services: [
@@ -792,22 +792,25 @@ async function main() {
     const existing = await prisma.business.findFirst({ where: { name: bDef.name } });
     if (existing) { bizCount++; continue; }
 
-    // Create the business
+    // Create the business. Its location is derived from the name rather than
+    // stored per fixture, so re-running this and migrating rows already in the
+    // database land on the same city without depending on any ordering.
+    const where = locationFor(bDef.name);
     const biz = await prisma.business.create({
       data: {
         name: bDef.name,
         description: bDef.description,
         categoryId: catRec.id,
         ownerId: owner.id,
-        address: bDef.address || null,
-        city: bDef.city || null,
+        address: where.address,
+        city: where.city,
         phone: bDef.phone || null,
         email: bDef.email || null,
         status: "APPROVED",
         attributes: JSON.stringify(bDef.attributes || {}),
         avgRating: bDef.avgRating || 0,
         reviewCount: bDef.reviewCount || 0,
-        ...coordsFor(bDef.city, bDef.name),
+        ...coordsFor(where.city, bDef.name),
       },
     });
 

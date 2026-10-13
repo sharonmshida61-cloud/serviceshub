@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
 import Icon from "./Icon.jsx";
 import { getCurrentPosition, watchPosition } from "../utils/geolocation.js";
+import { EMOJI_GROUPS, STICKERS, stickerUrl } from "../utils/chatPicker.js";
 
 const MAX_VOICE_SECONDS = 300;
 // WhatsApp's two sensible defaults; anything longer is a courier, not a customer.
@@ -21,18 +22,22 @@ const extFor = (mime) => EXT_BY_MIME[String(mime || "").split(";")[0]] || "bin";
 const clock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 const endTime = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-// The message box for both sides of a conversation: text, photos, videos,
-// voice notes and a pin or live location, in one row of controls.
+// The message box for both sides of a conversation: text, emoji, stickers,
+// photos, videos, documents, voice notes and a pin or live location, in one
+// row of controls.
 // `addressPin` is optional and owner-side only — the saved business location.
 export default function ChatComposer({ businessId, customerId, addressPin, onSent, placeholder = "Type a message…" }) {
   const [text, setText] = useState("");
   const [menu, setMenu] = useState("");
+  const [picker, setPicker] = useState("emoji");
   const [busy, setBusy] = useState("");
   const [rec, setRec] = useState(null);
   const [share, setShare] = useState(null);
   const [error, setError] = useState("");
+  const inputRef = useRef(null);
   const photoRef = useRef(null);
   const videoRef = useRef(null);
+  const docRef = useRef(null);
   const recorderRef = useRef(null);
   const secondsRef = useRef(0);
   const timerRef = useRef(null);
@@ -88,6 +93,7 @@ export default function ChatComposer({ businessId, customerId, addressPin, onSen
         mediaKind: up.kind,
         mediaUrl: up.url,
         ...(mediaSecs ? { mediaSecs: Math.round(mediaSecs) } : {}),
+        ...(up.kind === "DOCUMENT" ? { mediaName: up.name || file.name, mediaSize: up.size ?? file.size } : {}),
       });
       onSent(msg);
     } catch (e) {
@@ -101,6 +107,38 @@ export default function ChatComposer({ businessId, customerId, addressPin, onSen
     const file = e.target.files?.[0];
     e.target.value = "";
     if (file) uploadAndSend(file);
+  }
+
+  // An emoji lands where the caret is, so a reaction can go in the middle of a
+  // sentence — and the panel stays open for a second one.
+  function insertEmoji(emoji) {
+    const el = inputRef.current;
+    const from = el?.selectionStart ?? text.length;
+    const to = el?.selectionEnd ?? from;
+    setText(text.slice(0, from) + emoji + text.slice(to));
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(from + emoji.length, from + emoji.length);
+    });
+  }
+
+  async function sendSticker(sticker) {
+    setMenu("");
+    setBusy("sticker");
+    setError("");
+    try {
+      const msg = await api.sendMessage(businessId, {
+        customerId,
+        mediaKind: "STICKER",
+        mediaUrl: stickerUrl(sticker.file),
+      });
+      onSent(msg);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
   }
 
   async function sendText() {
@@ -248,10 +286,14 @@ export default function ChatComposer({ businessId, customerId, addressPin, onSen
         </div>
       ) : (
         <div className="chat-field">
-          <button type="button" className={`chat-tool${menu === "attach" ? " on" : ""}`} onClick={() => setMenu((m) => (m === "attach" ? "" : "attach"))} aria-label="Attach a photo or video" title="Photo or video">
+          <button type="button" className={`chat-tool${menu === "react" ? " on" : ""}`} onClick={() => setMenu((m) => (m === "react" ? "" : "react"))} aria-label="Insert an emoji or sticker" title="Emoji & stickers">
+            <Icon name="smile" />
+          </button>
+          <button type="button" className={`chat-tool${menu === "attach" ? " on" : ""}`} onClick={() => setMenu((m) => (m === "attach" ? "" : "attach"))} aria-label="Attach a photo, video or document" title="Photo, video or document">
             <Icon name="clip" />
           </button>
           <input
+            ref={inputRef}
             className="chat-input"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -276,17 +318,50 @@ export default function ChatComposer({ businessId, customerId, addressPin, onSen
       {menu && (
         <>
           <button type="button" className="chat-menu-backdrop" onClick={() => setMenu("")} tabIndex={-1} aria-label="Close menu" />
-          <div className="chat-menu" role="menu">
-            {menu === "attach" && (
-              <>
-                <button type="button" role="menuitem" onClick={() => { setMenu(""); photoRef.current?.click(); }}>
-                  <Icon name="image" size={16} /> Photo
-                </button>
-                <button type="button" role="menuitem" onClick={() => { setMenu(""); videoRef.current?.click(); }}>
-                  <Icon name="video" size={16} /> Video
-                </button>
-              </>
-            )}
+          {menu === "react" ? (
+            <div className="chat-picker">
+              <div className="chat-picker-tabs" role="tablist">
+                <button type="button" role="tab" aria-selected={picker === "emoji"} className={picker === "emoji" ? "on" : ""} onClick={() => setPicker("emoji")}>Emoji</button>
+                <button type="button" role="tab" aria-selected={picker === "sticker"} className={picker === "sticker" ? "on" : ""} onClick={() => setPicker("sticker")}>Stickers</button>
+              </div>
+              {picker === "emoji" ? (
+                <div className="chat-picker-body">
+                  {EMOJI_GROUPS.map((g) => (
+                    <div key={g.key} className="chat-emoji-group">
+                      <h5>{g.label}</h5>
+                      <div className="chat-emoji-grid">
+                        {g.items.map((e) => (
+                          <button key={e} type="button" onClick={() => insertEmoji(e)} aria-label={`Insert ${e}`}>{e}</button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="chat-sticker-grid">
+                  {STICKERS.map((s) => (
+                    <button key={s.file} type="button" disabled={!!busy} onClick={() => sendSticker(s)} title={s.label} aria-label={`Send the ${s.label} sticker`}>
+                      <img src={stickerUrl(s.file)} alt="" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="chat-menu" role="menu">
+              {menu === "attach" && (
+                <>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(""); photoRef.current?.click(); }}>
+                    <Icon name="image" size={16} /> Photo
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(""); videoRef.current?.click(); }}>
+                    <Icon name="video" size={16} /> Video
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(""); docRef.current?.click(); }}>
+                    <Icon name="document" size={16} /> Document
+                  </button>
+                </>
+              )}
             {menu === "location" && (
               <>
                 <button type="button" role="menuitem" disabled={busy === "pin"} onClick={sendCurrentLocation}>
@@ -304,12 +379,14 @@ export default function ChatComposer({ businessId, customerId, addressPin, onSen
                 ))}
               </>
             )}
-          </div>
+            </div>
+          )}
         </>
       )}
 
       <input ref={photoRef} type="file" accept="image/*" hidden onChange={pickFile} />
       <input ref={videoRef} type="file" accept="video/*" hidden onChange={pickFile} />
+      <input ref={docRef} type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.rtf,.txt,.csv" hidden onChange={pickFile} />
 
       {error && <div className="alert alert-error">{error}</div>}
       {busy === "media" && !rec && <div className="hint chat-uploading">Uploading attachment…</div>}

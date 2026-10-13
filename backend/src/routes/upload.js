@@ -99,6 +99,14 @@ const chatUpload = multer({
 router.post("/chat/:businessId", requireAuth, chatUpload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file received" });
 
+  const kind = chatMedia.kindOf(req.file.mimetype);
+  // multer caps every chat file at the video ceiling; a document has its own,
+  // much smaller one, so it is checked once the bytes are on disk.
+  if (kind === "DOCUMENT" && req.file.size > chatMedia.DOCUMENT_MAX_BYTES) {
+    fs.rmSync(req.file.path, { force: true });
+    return res.status(413).json({ error: "Documents are limited to 10 MB" });
+  }
+
   const customerId = activeRole(req.user) === "CUSTOMER" ? req.user.id : req.body?.customerId;
   const allowed = customerId && (await canAccessThread(req.user, req.params.businessId, customerId));
   if (!allowed) {
@@ -108,8 +116,9 @@ router.post("/chat/:businessId", requireAuth, chatUpload.single("file"), async (
 
   res.status(201).json({
     url: chatMedia.urlFor(req, req.params.businessId, req.user.id, req.file.filename),
-    kind: chatMedia.kindOf(req.file.mimetype),
+    kind,
     mime: req.file.mimetype,
+    name: req.file.originalname,
     size: req.file.size,
   });
 });
