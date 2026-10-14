@@ -26,18 +26,24 @@ export default function CitySelect({
     groups.set(country, [...(groups.get(country) || []), c]);
   }
 
+  const options = (list) =>
+    list.map((c) => (
+      <option key={c.city} value={c.city}>
+        {showCounts && c.count ? `${c.city} (${c.count})` : c.city}
+      </option>
+    ));
+
   return (
     <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
       <option value={placeholderValue}>{placeholder}</option>
-      {[...groups].map(([country, list]) => (
-        <optgroup key={country || "other"} label={country || t("cities.otherCountries")}>
-          {list.map((c) => (
-            <option key={c.city} value={c.city}>
-              {showCounts && c.count ? `${c.city} (${c.count})` : c.city}
-            </option>
+      {/* One country on screen needs no heading above its own regions. */}
+      {groups.size === 1
+        ? options([...groups.values()][0])
+        : [...groups].map(([country, list]) => (
+            <optgroup key={country || "other"} label={country || t("cities.otherCountries")}>
+              {options(list)}
+            </optgroup>
           ))}
-        </optgroup>
-      ))}
     </select>
   );
 }

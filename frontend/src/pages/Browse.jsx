@@ -5,6 +5,7 @@ import { StarDisplay } from "../components/StarRating.jsx";
 import BusinessQuickView from "../components/BusinessQuickView.jsx";
 import AiFinder from "../components/AiFinder.jsx";
 import CitySelect from "../components/CitySelect.jsx";
+import CountrySelect from "../components/CountrySelect.jsx";
 import useCities from "../hooks/useCities.js";
 import { getCategoryImage } from "../utils/categoryImages.js";
 import { getBusinessCover } from "../utils/businessCovers.js";
@@ -28,13 +29,14 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
 
   const initialParams = new URLSearchParams(window.location.search);
   const savedArea = localStorage.getItem(MY_AREA_KEY) || "";
-  // Where the customer is — remembered between visits
-  const [myArea, setMyArea] = useState(savedArea);
+  // Where the customer is — a country, remembered between visits
+  const [myCountry, setMyCountry] = useState(savedArea);
   // "committed" filters — what's actually sent to the API
   const [filters, setFilters] = useState({
     category: initialCategory || initialParams.get("category") || "",
     q: initialQuery || initialParams.get("q") || "",
-    city: initialParams.get("city") || savedArea,
+    country: initialParams.get("country") || savedArea,
+    city: initialParams.get("city") || "",
     sort: "rating",
   });
   // "draft" inputs — what the user is typing before they hit Search
@@ -49,6 +51,37 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
     api.categories().then(setCategories).catch(() => {});
   }, []);
 
+  // The catalogue pairs each region with its country, so the country list is
+  // read off it rather than fetched separately.
+  const countries = useMemo(() => {
+    const byName = new Map();
+    for (const c of cities) {
+      const name = c.country || "";
+      const row = byName.get(name) || { country: name, count: 0 };
+      row.count += c.count || 0;
+      byName.set(name, row);
+    }
+    return [...byName.values()];
+  }, [cities]);
+
+  const regionCities = useMemo(
+    () => (myCountry ? cities.filter((c) => c.country === myCountry) : cities),
+    [cities, myCountry]
+  );
+
+  // An older build remembered a city under this key, and a city is not a
+  // country — kept as is, it would quietly filter every listing out.
+  useEffect(() => {
+    if (!cities.length || !myCountry) return;
+    if (countries.some((c) => c.country === myCountry)) return;
+    const home = cities.find((c) => c.city === myCountry);
+    const next = home ? home.country : "";
+    setMyCountry(next);
+    setFilters((f) => ({ ...f, country: next, city: "" }));
+    if (next) localStorage.setItem(MY_AREA_KEY, next);
+    else localStorage.removeItem(MY_AREA_KEY);
+  }, [cities, countries, myCountry]);
+
   // The dashboard keeps this panel mounted, so a new category tile or search has
   // to be pushed in as a prop change rather than a remount.
   useEffect(() => {
@@ -59,12 +92,18 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
   }, [embed, initialCategory, initialQuery]);
 
   useEffect(() => {
+    // This endpoint is slow enough that two overlapping searches can land out
+    // of order — a stale response must not replace the results being shown.
+    let alive = true;
     setLoading(true);
     api
       .searchBusinesses(filters)
-      .then(setBusinesses)
-      .catch(() => setBusinesses([]))
-      .finally(() => setLoading(false));
+      .then((rows) => { if (alive) setBusinesses(rows); })
+      .catch(() => { if (alive) setBusinesses([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => {
+      alive = false;
+    };
   }, [filters]);
 
   // Debounced auto-search as the user types (400 ms delay)
@@ -93,11 +132,13 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
     setFilters((f) => ({ ...f, [field]: "" }));
   }
 
-  function chooseMyArea(city) {
-    setMyArea(city);
-    if (city) localStorage.setItem(MY_AREA_KEY, city);
+  function chooseMyCountry(country) {
+    setMyCountry(country);
+    if (country) localStorage.setItem(MY_AREA_KEY, country);
     else localStorage.removeItem(MY_AREA_KEY);
-    setFilters((f) => ({ ...f, city }));
+    // The region that was selected belongs to the country being left, so the
+    // search widens back to the new country instead of returning nothing.
+    setFilters((f) => ({ ...f, country, city: "" }));
   }
 
   function chooseSearchCity(city) {
@@ -111,7 +152,7 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
   function clearAllFilters() {
     clearTimeout(debounceRef.current);
     setDraft({ q: "" });
-    setFilters({ category: "", q: "", city: myArea, sort: "rating" });
+    setFilters({ category: "", q: "", country: myCountry, city: "", sort: "rating" });
   }
 
   const compareList = useMemo(
@@ -156,11 +197,11 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
                 <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
                 <circle cx="12" cy="12" r="8" />
               </svg>
-              <CitySelect
+              <CountrySelect
                 id="my-area"
-                cities={cities}
-                value={myArea}
-                onChange={chooseMyArea}
+                countries={countries}
+                value={myCountry}
+                onChange={chooseMyCountry}
                 placeholder={t("browse.location.notSet")}
               />
             </div>
@@ -176,10 +217,14 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
               </svg>
               <CitySelect
                 id="search-city"
-                cities={cities}
+                cities={regionCities}
                 value={filters.city}
                 onChange={chooseSearchCity}
-                placeholder={t("browse.location.allCities")}
+                placeholder={
+                  myCountry
+                    ? `${t("browse.location.allOf")} ${myCountry}`
+                    : t("browse.location.allCities")
+                }
               />
             </div>
           </div>
@@ -188,6 +233,10 @@ export function BrowsePanel({ embed = false, initialCategory = "", initialQuery 
             {filters.city ? (
               <>
                 {t("browse.location.showing")} <strong>{areaLabel(filters.city)}</strong>
+              </>
+            ) : filters.country ? (
+              <>
+                {t("browse.location.showing")} <strong>{filters.country}</strong>
               </>
             ) : (
               t("browse.location.pickOne")

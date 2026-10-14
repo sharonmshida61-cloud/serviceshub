@@ -14,10 +14,10 @@ function parseJsonFields(biz) {
 // ---------------------------------------------------------------------------
 // DISCOVERY: search + filter + compare. This single endpoint powers the
 // "discover" and "compare" experience across every category.
-// Query params: category=slug, city=, minRating=, sort=rating|price|newest
+// Query params: category=slug, city=, country=, minRating=, sort=rating|price|newest
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
-  const { category, city, minRating, q, sort = "rating" } = req.query;
+  const { category, city, country, minRating, q, sort = "rating" } = req.query;
   const where = { status: "APPROVED" };
 
   if (category) {
@@ -46,6 +46,18 @@ router.get("/", async (req, res) => {
     const cityTerm = city.trim().toLowerCase();
     businesses = businesses.filter(
       (b) => b.city && b.city.toLowerCase().includes(cityTerm)
+    );
+  }
+  // The catalogue is the only place a city is tied to a country, so a country
+  // filter is expanded into its city set. A listing outside the launch region
+  // belongs to no country and drops out of a country-scoped search.
+  if (country && country.trim()) {
+    const wanted = country.trim().toLowerCase();
+    const regions = new Set(
+      CITIES.filter((c) => c.country.toLowerCase() === wanted).map((c) => c.city.toLowerCase())
+    );
+    businesses = businesses.filter(
+      (b) => b.city && regions.has(b.city.trim().toLowerCase())
     );
   }
 
