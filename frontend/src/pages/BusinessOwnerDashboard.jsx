@@ -11,11 +11,10 @@ import { SettingsPanel as AccountSettingsPanel } from "./Settings.jsx";
 import LocationPicker from "../components/LocationPicker.jsx";
 import CitySelect from "../components/CitySelect.jsx";
 import useCities from "../hooks/useCities.js";
-import MessageBubble from "../components/MessageBubble.jsx";
-import ChatComposer from "../components/ChatComposer.jsx";
-import useChatThread, { stickToBottom } from "../hooks/useChatThread.js";
-import { describeMessage, timeAgo as chatTimeAgo } from "../utils/chatSnippet.js";
-import { hasCoords } from "../utils/geolocation.js";
+import ProfileCard from "../components/ProfileCard.jsx";
+import ProviderInbox from "../components/ProviderInbox.jsx";
+import TeamAvatar, { displayName, memberPhone, memberEmail } from "../components/TeamAvatar.jsx";
+import { STAFF_ROLES, roleChoices, roleGrants } from "../utils/staffAccess.js";
 
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Live overview of today's activity at your business." },
@@ -23,11 +22,13 @@ const NAV = [
   { key: "services", label: "My Services", icon: "tag", subtitle: "What you offer, at what price." },
   { key: "bookings", label: "Bookings", icon: "calendar", group: "Operations", subtitle: "Requests, confirmations and completed jobs." },
   { key: "customers", label: "Customers", icon: "users", subtitle: "Everyone who has booked with you." },
+  { key: "messages", label: "Messages", icon: "chat", subtitle: "Chats with the customers who message your listing." },
   { key: "reviews", label: "Reviews", icon: "star", subtitle: "Ratings left after a completed booking." },
   { key: "earnings", label: "Earnings", icon: "wallet", group: "Finance", subtitle: "Collected and outstanding payment." },
   { key: "analytics", label: "Analytics", icon: "chart", subtitle: "How the listing is performing." },
   { key: "notifications", label: "Notifications", icon: "bell", group: "Account", subtitle: "Activity worth acting on." },
-  { key: "settings", label: "Settings", icon: "settings", subtitle: "Profile, password and preferences." },
+  { key: "profile", label: "Profile", icon: "idcard", subtitle: "Your sign-in details, name and profile picture." },
+  { key: "settings", label: "Settings", icon: "settings", subtitle: "Password and preferences." },
 ];
 
 export default function BusinessOwnerDashboard() {
@@ -55,6 +56,10 @@ export default function BusinessOwnerDashboard() {
   // --- Pending-approval screen shown right after registration ---
   const justRegistered = businesses.length === 0 && !showNewBiz;
 
+  // Settings and Profile describe the owner, not a listing, so they skip the
+  // listing switcher and the review-status banners.
+  const accountSection = section === "settings" || section === "profile";
+
   return (
     <DashboardShell accent="owner" navItems={NAV} active={section} onNav={setSection}
       context={{ label: "Listing", value: active?.name || "None yet", icon: "store" }}
@@ -65,7 +70,9 @@ export default function BusinessOwnerDashboard() {
 
       {section === "settings" && <AccountSettingsPanel embed />}
 
-      {section !== "settings" && justRegistered && (
+      {section === "profile" && <ProfileCard user={user} />}
+
+      {!accountSection && justRegistered && (
         <div className="card" style={{ maxWidth: 560, margin: "40px auto", textAlign: "center", padding: "40px 32px" }}>
           <div style={{ fontSize: "3rem", marginBottom: 12 }}>🏪</div>
           <h2 style={{ marginBottom: 8 }}>Welcome, {user?.name || "there"}!</h2>
@@ -97,7 +104,7 @@ export default function BusinessOwnerDashboard() {
 
       {businesses.length > 0 && active && (
         <>
-          {section !== "settings" && (businesses.length > 1 || section !== "dashboard") && (
+          {!accountSection && (businesses.length > 1 || section !== "dashboard") && (
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 22 }}>
             {businesses.length > 1 && businesses.map((b) => (
               <button
@@ -113,19 +120,19 @@ export default function BusinessOwnerDashboard() {
           </div>
           )}
 
-          {section !== "dashboard" && active.status === "PENDING" && (
+          {!accountSection && active.status === "PENDING" && (
             <div className="alert" style={{ background: "var(--amber-light)", borderLeft: "4px solid var(--amber, #f59e0b)", color: "#ffc978", marginBottom: 20 }}>
               <strong>Awaiting admin approval</strong> — your listing has been submitted and is under review.
               You'll be able to add services, manage employees, and accept bookings once it's approved.
               No action needed on your end.
             </div>
           )}
-          {section !== "dashboard" && active.status === "REJECTED" && (
+          {!accountSection && active.status === "REJECTED" && (
             <div className="alert alert-error" style={{ marginBottom: 20 }}>
               <strong>Listing rejected</strong> — this listing was not approved. Please contact support or edit your listing details and resubmit.
             </div>
           )}
-          {section !== "dashboard" && active.status === "SUSPENDED" && (
+          {!accountSection && active.status === "SUSPENDED" && (
             <div className="alert alert-error" style={{ marginBottom: 20 }}>
               <strong>Listing suspended</strong> — this listing has been suspended by an admin. Please contact support.
             </div>
@@ -134,6 +141,7 @@ export default function BusinessOwnerDashboard() {
           {section === "dashboard" && <Overview business={active} onNavigate={setSection} />}
           {section === "bookings" && <BookingsPanel business={active} />}
           {section === "customers" && <CustomersPanel business={active} onStatusChange={load} />}
+          {section === "messages" && <ProviderInbox business={active} />}
           {section === "services" && (active.status === "APPROVED"
             ? <ServicesPanel business={active} onChange={load} />
             : <ApprovalRequired />
@@ -361,7 +369,7 @@ function Overview({ business, onNavigate }) {
 
 function MyBusinessSection({ business, onChange }) {
   const [tab, setTab] = useState("details");
-  const TABS = [["details", "Details"], ["media", "Photos & Videos"], ["team", "Team"], ["messages", "Messages"]];
+  const TABS = [["details", "Details"], ["media", "Photos & Videos"], ["team", "Team"]];
   return (
     <div>
       <div className="tabs">
@@ -375,7 +383,6 @@ function MyBusinessSection({ business, onChange }) {
         ? <EmployeesPanel business={business} onChange={onChange} />
         : <ApprovalRequired />
       )}
-      {tab === "messages" && <MessagesPanel business={business} />}
     </div>
   );
 }
@@ -538,7 +545,7 @@ function ApprovalRequired() {
 
 function NewBusinessForm({ categories, onCreated, onCancel }) {
   const cities = useCities();
-  const [form, setForm] = useState({ name: "", description: "", categorySlug: "", city: "", address: "", phone: "" });
+  const [form, setForm] = useState({ name: "", description: "", categorySlug: "", city: "", address: "", phone: "", website: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [mediaFiles, setMediaFiles] = useState([]); // [{ file, objectUrl, type }]
@@ -624,6 +631,16 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
+        <div className="field">
+          <label>Website (optional)</label>
+          <input
+            value={form.website}
+            maxLength={200}
+            placeholder="pipepro.co.ke"
+            onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+          />
+          <span className="hint">Customers open your site in a new tab from your listing page.</span>
+        </div>
 
         <div className="field">
           <label>Pin your location</label>
@@ -1104,144 +1121,354 @@ function ServicesPanel({ business, onChange }) {
 }
 
 function EmployeesPanel({ business, onChange }) {
-  const [employees, setEmployees] = useState(business.employees || []);
-  const [userId, setUserId] = useState("");
-  const [title, setTitle] = useState("");
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState(STAFF_ROLES[0]);
+  const [customRole, setCustomRole] = useState("");
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [busy, setBusy] = useState("");
+  const [inviteFor, setInviteFor] = useState("");
+  const [invite, setInvite] = useState(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const members = [...(business.employees || [])].sort(
+    (a, b) => Number(b.active) - Number(a.active) || displayName(a).localeCompare(displayName(b))
+  );
+  const inviteMember = members.find((m) => m.id === inviteFor && !m.userId) || null;
+  const term = query.trim().toLowerCase();
+  const shown = term
+    ? members.filter((m) => [displayName(m), memberPhone(m), memberEmail(m), m.title]
+        .some((v) => (v || "").toLowerCase().includes(term)))
+    : members;
+
+  async function run(id, action, message) {
+    setBusy(id);
+    setError("");
+    setNote("");
+    try {
+      await action();
+      setNote(message);
+      onChange();
+      return true;
+    } catch (e) {
+      setError(e.message);
+      return false;
+    } finally {
+      setBusy("");
+    }
+  }
 
   async function add(e) {
     e.preventDefault();
-    setError("");
-    try {
-      await api.addEmployee(business.id, { userId, title });
-      setNote("Employee added.");
-      setUserId(""); setTitle("");
-      onChange();
-    } catch (e) { setError(e.message); }
+    const entry = { name, phone, email, role, title: role === "Other" ? customRole : "" };
+    if (!entry.name.trim() && !entry.phone.trim() && !entry.email.trim()) {
+      setError("Give them a name, phone or email so you recognise them later.");
+      return;
+    }
+    const who = name.trim() || email.trim() || phone.trim();
+    let created = null;
+    const added = await run(
+      "add",
+      async () => {
+        created = await api.addEmployee(business.id, entry);
+        return created;
+      },
+      `${who} is on your team.`
+    );
+    if (!added) return;
+    setName("");
+    setPhone("");
+    setEmail("");
+    setCustomRole("");
+    setRole(STAFF_ROLES[0]);
+    setShowForm(false);
+    // Added without an account: the link is what turns the name on the roster
+    // into a person who can sign in and see their own dashboard.
+    if (created && !created.userId) openInvite(created);
   }
+
+  function changeRole(member, value) {
+    run(member.id, () => api.updateEmployee(business.id, member.id, { title: value }), `${displayName(member)} is now ${value}.`);
+  }
+
+  function remove(member) {
+    if (!confirm(`Remove ${displayName(member)} from your team? Customers will no longer see them on your listing.`)) return;
+    run(member.id, () => api.removeEmployee(business.id, member.id), `${displayName(member)} was removed.`);
+  }
+
+  function restore(member) {
+    run(member.id, () => api.updateEmployee(business.id, member.id, { active: true }), `${displayName(member)} is back on the team.`);
+  }
+
+  function drop(member) {
+    if (!confirm(`Delete ${displayName(member)} from this listing for good?`)) return;
+    run(member.id, () => api.deleteEmployee(business.id, member.id), `${displayName(member)} was deleted.`);
+  }
+
+  // Every call mints a new link, so the card always shows the one that currently
+  // works; the QR or message sent before it stops opening the sign-up.
+  async function openInvite(member) {
+    setInviteFor(member.id);
+    setInvite(null);
+    setCopied(false);
+    setError("");
+    setInviteBusy(true);
+    try {
+      setInvite(await api.employeeInvite(business.id, member.id));
+    } catch (e) {
+      setError(e.message);
+      setInviteFor("");
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  function closeInvite() {
+    setInviteFor("");
+    setInvite(null);
+    setCopied(false);
+  }
+
+  function copyLink(url) {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const activeCount = members.filter((m) => m.active).length;
 
   return (
     <div>
       <h2>Team</h2>
       {error && <div className="alert alert-error">{error}</div>}
-      {note && <div className="alert alert-success">{note}</div>}
-      <table className="data-table">
-        <thead><tr><th>Name</th><th>Title</th><th>Status</th></tr></thead>
-        <tbody>
-          {(business.employees || []).map((e) => (
-            <tr key={e.id}><td>{e.user?.name}</td><td>{e.title}</td><td>{e.active ? "Active" : "Removed"}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="card" style={{ maxWidth: 420, marginTop: 20 }}>
-        <h3>Add an employee</h3>
-        <p className="hint">The person must already have a Nearby account (any role). Ask for their account's user ID, shown on their profile — or have them register first.</p>
-        <form onSubmit={add}>
-          <div className="field"><label>User ID</label><input required value={userId} onChange={(e) => setUserId(e.target.value)} /></div>
-          <div className="field"><label>Title</label><input placeholder="e.g. Senior Stylist" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
-          <button className="btn btn-primary btn-block">Add to team</button>
-        </form>
-      </div>
-    </div>
-  );
-}
+      {note && !error && <div className="alert alert-success">{note}</div>}
 
-function MessagesPanel({ business }) {
-  const [threads, setThreads] = useState(null);
-  const [active, setActive] = useState(null);
-  const [listError, setListError] = useState("");
-  const { messages, error, push } = useChatThread(business?.id, active?.customerId);
-  const endRef = useRef(null);
-
-  useEffect(() => {
-    api.businessThreads(business.id).then(setThreads).catch((e) => setListError(e.message));
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") api.businessThreads(business.id).then(setThreads).catch(() => {});
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [business.id]);
-
-  useEffect(() => { stickToBottom(endRef.current); }, [messages]);
-
-  function onSent(msg) {
-    push(msg);
-    setThreads((t) => (t || []).map((x) => (x.customerId === msg.customerId
-      ? { ...x, lastMessage: describeMessage(msg), lastAt: msg.createdAt, lastFromMe: true, messageCount: x.messageCount + 1 }
-      : x)));
-  }
-
-  const addressPin = hasCoords(business)
-    ? { latitude: business.latitude, longitude: business.longitude, name: `${business.name} address` }
-    : null;
-
-  if (!threads) return listError ? <div className="alert alert-error">{listError}</div> : <p>Loading…</p>;
-
-  return (
-    <div className="inbox">
-      <section className="panel inbox-list">
+      <div className="panel">
         <div className="panel-head">
-          <h3><Icon name="chat" size={17} />Customers</h3>
-          <span className="hint">{threads.length}</span>
-        </div>
-        <div className="panel-body flush">
-          {threads.length === 0 && (
-            <p className="inbox-empty">No conversations yet. Customers can message you from your listing page.</p>
-          )}
-          {threads.map((t) => (
-            <button type="button" key={t.customerId}
-              className={`inbox-row${active?.customerId === t.customerId ? " active" : ""}`}
-              onClick={() => setActive(t)}>
-              <span className="inbox-who">
-                <strong>{t.customerName}</strong>
-                <span className="inbox-sub">{chatTimeAgo(t.lastAt)}</span>
-              </span>
-              <span className="inbox-snippet">
-                <span className="inbox-text">{t.lastFromMe ? `You: ${t.lastMessage}` : t.lastMessage}</span>
-                <span className="inbox-count">{t.messageCount}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel inbox-thread">
-        <div className="panel-head">
-          <h3>
-            <Icon name="chat" size={17} />
-            {active ? active.customerName : "Pick a conversation"}
-          </h3>
+          <h3><Icon name="users" size={17} />Team <span className="inbox-count">{activeCount}</span></h3>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => { setShowForm((v) => !v); setError(""); }}>
+            {showForm ? "Close" : "+ Add a team member"}
+          </button>
         </div>
 
-        {!active && (
+        {showForm && (
           <div className="panel-body">
-            <p className="inbox-placeholder">Choose a customer on the left to read and reply.</p>
+            <form onSubmit={add} className="team-add">
+              <div className="team-add-fields">
+                <div className="field">
+                  <label>Name</label>
+                  <input maxLength={60} placeholder="e.g. Amina Juma" value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Phone</label>
+                  <input maxLength={30} placeholder="e.g. +255 712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label>Email</label>
+                  <input maxLength={120} placeholder="e.g. amina@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                </div>
+              </div>
+              <div className="field">
+                <label>Role</label>
+                <select value={role} onChange={(e) => setRole(e.target.value)}>
+                  {STAFF_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  <option value="Other">Write your own…</option>
+                </select>
+                {role === "Other" && (
+                  <input
+                    className="team-role-custom"
+                    maxLength={40}
+                    placeholder="e.g. Senior Stylist"
+                    value={customRole}
+                    onChange={(e) => setCustomRole(e.target.value)}
+                  />
+                )}
+                <p className="team-grants">{roleGrants(role === "Other" ? customRole : role)}</p>
+              </div>
+              <button className="btn btn-primary">Add to team</button>
+              <p className="hint team-add-hint">
+                Any of name, phone or email is enough. If the email already has a Nearby account, they are linked to
+                your listing and can sign in as staff — and the next time they sign in they land on their own dashboard
+                for {business.name || "this listing"}. Anyone without an account gets an invitation link and QR code you
+                can send straight away.
+              </p>
+            </form>
           </div>
         )}
 
-        {active && (
-          <>
-            <div className="msg-thread inbox-scroll">
-              {messages.length === 0 && <p className="hint">Say hello.</p>}
-              {messages.map((m) => (
-                <MessageBubble key={m.id} message={m} mine={m.senderId !== active.customerId} />
-              ))}
-              <div ref={endRef} />
-            </div>
-            {error && <div className="alert alert-error inbox-error">{error}</div>}
-            <ChatComposer
-              businessId={business.id}
-              customerId={active.customerId}
-              addressPin={addressPin}
-              onSent={onSent}
-              placeholder={`Reply to ${active.customerName}…`}
-            />
-            {!addressPin && (
-              <p className="hint inbox-note">Pin your location under Business details to send customers your address.</p>
+        {!showForm && members.length > 0 && (
+          <div className="inbox-search" style={{ margin: "0 20px 12px" }}>
+            <Icon name="search" size={16} />
+            <input value={query} placeholder="Search your team by name, role or email" onChange={(e) => setQuery(e.target.value)} />
+            {query && (
+              <button type="button" className="inbox-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
+                <Icon name="close" size={14} />
+              </button>
             )}
-          </>
+          </div>
         )}
-      </section>
+
+        <div className="panel-body flush">
+          {members.length === 0 && (
+            <p className="team-empty">No team members yet. Add the people you work with — customers see them on your listing page.</p>
+          )}
+          {members.length > 0 && shown.length === 0 && (
+            <p className="team-empty">No one on your team matches “{query.trim()}”.</p>
+          )}
+          {shown.length > 0 && (
+            <div className="table-scroll">
+              <table className="data-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr><th>Team member</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr>
+                </thead>
+                <tbody>
+                  {shown.map((m) => (
+                    <tr key={m.id} className={m.active ? "" : "team-row--out"}>
+                      <td>
+                        <div className="team-member">
+                          <TeamAvatar member={m} />
+                          <div className="team-id">
+                            <div className="team-name">{displayName(m)}</div>
+                            {m.active && memberPhone(m) && <div className="team-mail">{memberPhone(m)}</div>}
+                            {m.active && memberEmail(m) && <div className="team-mail">{memberEmail(m)}</div>}
+                            {m.active && (
+                              <span className={`team-signin ${m.userId ? "team-signin--on" : "team-signin--off"}`}>
+                                {m.userId ? "Signs in as staff" : "No account yet"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <select
+                          className="team-role"
+                          value={m.title}
+                          disabled={!m.active || busy === m.id}
+                          onChange={(e) => changeRole(m, e.target.value)}
+                        >
+                          {roleChoices(m.title).map((r) => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                        {m.active && <div className="team-grants">{roleGrants(m.title)}</div>}
+                      </td>
+                      <td>
+                        <span className={m.active ? "pill pill-approved" : "pill pill-suspended"}>
+                          {m.active ? "Active" : "Removed"}
+                        </span>
+                      </td>
+                      <td className="team-joined">{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "—"}</td>
+                      <td>
+                        <div className="team-actions">
+                          {m.active && !m.userId && (
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={inviteBusy && inviteFor === m.id}
+                              onClick={() => openInvite(m)}
+                            >
+                              {inviteBusy && inviteFor === m.id ? "…" : "Invite"}
+                            </button>
+                          )}
+                          {m.active ? (
+                            <button type="button" className="btn btn-sm" disabled={busy === m.id} onClick={() => remove(m)}>
+                              {busy === m.id ? "…" : "Remove"}
+                            </button>
+                          ) : (
+                            <>
+                              <button type="button" className="btn btn-primary btn-sm" disabled={busy === m.id} onClick={() => restore(m)}>
+                                {busy === m.id ? "…" : "Bring back"}
+                              </button>
+                              <button type="button" className="btn btn-danger btn-sm" disabled={busy === m.id} onClick={() => drop(m)}>
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {inviteMember && (
+          <div className="panel-body">
+            <div className="team-invite">
+              <div className="team-invite-qrbox">
+                {invite ? (
+                  <img className="team-invite-qr" src={invite.qrDataUrl} alt={`Invitation QR code for ${displayName(inviteMember)}`} />
+                ) : (
+                  <div className="team-invite-qr team-invite-qr--pending">
+                    <Icon name="expand" size={22} />
+                  </div>
+                )}
+                {invite && (
+                  <a
+                    className="team-invite-download"
+                    href={invite.qrDataUrl}
+                    download={`nearby-invite-${displayName(inviteMember).toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`}
+                  >
+                    <Icon name="download" size={14} /> Save the QR image
+                  </a>
+                )}
+              </div>
+
+              <div className="team-invite-main">
+                <div className="team-invite-head">
+                  <h4>Invite {displayName(inviteMember)}</h4>
+                  <button type="button" className="linklike" onClick={closeInvite}>
+                    Done
+                  </button>
+                </div>
+                <p className="hint">
+                  {displayName(inviteMember)} has no sign-in yet. Send them the link below or let them scan the code:
+                  it opens a one-page sign-up for the {inviteMember.title} role at {business.name}.
+                </p>
+
+                <div className="team-invite-link">
+                  <input readOnly value={invite?.url || ""} onFocus={(e) => e.target.select()} aria-label="Invitation link" />
+                  <button type="button" className="btn btn-sm" disabled={!invite} onClick={() => invite && copyLink(invite.url)}>
+                    {copied ? "Copied" : "Copy link"}
+                  </button>
+                </div>
+
+                <div className="team-invite-actions">
+                  <button type="button" className="btn btn-sm" disabled={inviteBusy} onClick={() => openInvite(inviteMember)}>
+                    {inviteBusy ? "Working…" : "New link"}
+                  </button>
+                  <span className="hint">
+                    {invite
+                      ? `Works until ${new Date(invite.expiresAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}, or until they sign up.`
+                      : "Preparing the link…"}
+                  </span>
+                </div>
+                <p className="hint">Asking for a new link stops the one you sent before from working.</p>
+
+                <ol className="team-invite-steps">
+                  <li>They scan the QR code or open the link.</li>
+                  <li>They enter their name, email, phone number, a photo of their national ID and a password.</li>
+                  <li>
+                    Their own dashboard opens on {business.name} with only what a {inviteMember.title} is allowed to
+                    see.
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <p className="hint" style={{ marginTop: 12 }}>
+        Removing someone keeps their past bookings; deleting them clears the name from this listing.
+      </p>
     </div>
   );
 }
@@ -1285,15 +1512,21 @@ function ReviewsPanel({ business }) {
 
 function ListingDetailsPanel({ business, onChange }) {
   const cities = useCities();
-  const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "", latitude: business.latitude, longitude: business.longitude });
+  const [form, setForm] = useState({ name: business.name, description: business.description || "", city: business.city || "", address: business.address || "", phone: business.phone || "", website: business.website || "", latitude: business.latitude, longitude: business.longitude });
   const [attrs, setAttrs] = useState(business.attributes || {});
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   async function save(e) {
     e.preventDefault();
-    await api.updateBusiness(business.id, { ...form, attributes: attrs });
-    setSaved(true);
-    onChange();
+    setError("");
+    try {
+      await api.updateBusiness(business.id, { ...form, attributes: attrs });
+      setSaved(true);
+      onChange();
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   const schema = Array.isArray(business.category?.attributeSchema) ? business.category.attributeSchema : [];
@@ -1302,6 +1535,7 @@ function ListingDetailsPanel({ business, onChange }) {
     <div>
       <h2>Business settings</h2>
       {saved && <div className="alert alert-success">Saved.</div>}
+      {error && <div className="alert alert-error">{error}</div>}
       <form onSubmit={save} className="card" style={{ maxWidth: 480 }}>
         <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
         <div className="field"><label>Description</label><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
@@ -1310,6 +1544,16 @@ function ListingDetailsPanel({ business, onChange }) {
           <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
+        <div className="field">
+          <label>Website (optional)</label>
+          <input
+            value={form.website}
+            maxLength={200}
+            placeholder="pipepro.co.ke"
+            onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+          />
+          <span className="hint">Customers open your site in a new tab from your listing page.</span>
+        </div>
 
         <div className="field">
           <label>Pin your location</label>

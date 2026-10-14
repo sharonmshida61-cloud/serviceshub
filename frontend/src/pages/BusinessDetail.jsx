@@ -7,6 +7,7 @@ import { StarDisplay } from "../components/StarRating.jsx";
 import MediaGallery from "../components/MediaGallery.jsx";
 import LocationMap from "../components/LocationMap.jsx";
 import MessageBubble from "../components/MessageBubble.jsx";
+import { siteLabel } from "../utils/website.js";
 
 export default function BusinessDetail() {
   const { id } = useParams();
@@ -115,21 +116,38 @@ export default function BusinessDetail() {
           <span className="pill" style={{ background: "var(--paper-2)", color: "var(--ink-2)" }}>{business.category?.name}</span>
           <h1>{business.name}</h1>
         </div>
-        {user && user.role === "CUSTOMER" && (
-          <button
-            className="btn btn-outline"
-            onClick={toggleFavorite}
-            style={{ fontSize: "1.5rem", padding: "8px 16px" }}
-          >
-            {isFavorite ? "💖" : "🤍"}
-          </button>
-        )}
+        <div style={{ display: "flex", gap: 10, alignItems: "start" }}>
+          {business.website && (
+            <a
+              className="btn btn-outline"
+              href={business.website}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              🌐 {t("business.website")}
+            </a>
+          )}
+          {user && user.role === "CUSTOMER" && (
+            <button
+              className="btn btn-outline"
+              onClick={toggleFavorite}
+              style={{ fontSize: "1.5rem", padding: "8px 16px" }}
+            >
+              {isFavorite ? "💖" : "🤍"}
+            </button>
+          )}
+        </div>
       </div>
       <StarDisplay rating={business.avgRating} count={business.reviewCount} />
       <p>{business.description}</p>
       <div className="attr-list">
         {business.city && <span className="attr-chip">📍 {business.city}{business.address ? `, ${business.address}` : ""}</span>}
         {business.phone && <span className="attr-chip">📞 {business.phone}</span>}
+        {business.website && (
+          <a className="attr-chip attr-chip--link" href={business.website} target="_blank" rel="noopener noreferrer">
+            {siteLabel(business.website)}
+          </a>
+        )}
         {attrs.map(([k, v]) => (
           <span className="attr-chip" key={k}>{k}: {String(v)}</span>
         ))}
@@ -275,7 +293,7 @@ export default function BusinessDetail() {
               <h2>{t("business.team")}</h2>
               <div className="attr-list">
                 {business.employees.map((e) => (
-                  <span className="attr-chip" key={e.id}>{e.user.name} — {e.title}</span>
+                  <span className="attr-chip" key={e.id}>{e.staffName || e.user?.name} — {e.title}</span>
                 ))}
               </div>
             </>

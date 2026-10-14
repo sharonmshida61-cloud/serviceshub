@@ -1295,6 +1295,20 @@ table.data-table tr:hover {
   color: var(--ink);
 }
 
+/* A website is the only chip that leaves the page, so it reads as a link — and
+   a long domain truncates rather than pushing the whole row wider on a phone. */
+.attr-chip--link {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.attr-chip--link:hover {
+  text-decoration: underline;
+}
+
 /* ---------- Browse page ---------- */
 
 .browse-header {
@@ -2520,6 +2534,7 @@ table.data-table tr:hover {
 .dash-admin    { --dash-role: #4c8dff; --dash-role-soft: rgba(76, 141, 255, 0.14); }
 .dash-owner    { --dash-role: #2ecf8f; --dash-role-soft: rgba(46, 207, 143, 0.14); }
 .dash-customer { --dash-role: #9d8cff; --dash-role-soft: rgba(157, 140, 255, 0.16); }
+.dash-staff    { --dash-role: #37c8d4; --dash-role-soft: rgba(55, 200, 212, 0.16); }
 
 /* The console reads as a UI, not editorial copy, so it drops the serif display
    face the public pages use. */
@@ -5260,6 +5275,36 @@ a.auth-submit--link {
   margin-top: 2px;
 }
 
+/* A national ID is a landscape card, so its preview is rectangular rather than
+   the round profile-picture chip. */
+.invite-id-thumb {
+  width: 100px;
+  height: 64px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px dashed #b9c4d4;
+  border-radius: 8px;
+  background: #f3f6fb;
+  color: #5b6779;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.invite-id-thumb:hover,
+.invite-id-thumb:focus-visible {
+  border-color: #14a08f;
+  color: #0f8a7a;
+}
+
+.invite-id-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .auth-quote-item {
     transition: none;
@@ -6682,5 +6727,182 @@ table.bookings-table { min-width: 560px; }
   .msg-doc-meta strong { max-width: 130px; }
   .msg-media { max-height: 230px; }
   .msg-audio { min-width: 0; }
+}
+
+/* ---------- Owner team table ---------- */
+
+.team-member { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.team-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: cover;
+  background: var(--dash-card-2);
+}
+.team-avatar--initials {
+  display: grid;
+  place-items: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--dash-fg-2);
+}
+.team-name { font-weight: 600; }
+.team-mail {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--dash-fg-2);
+}
+.team-role { min-width: 132px; }
+.team-role:disabled { opacity: 0.5; }
+.team-role-custom { margin-top: 8px; width: 100%; }
+.team-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.team-joined { color: var(--dash-fg-2); font-size: 0.82rem; white-space: nowrap; }
+.team-row--out .team-name { opacity: 0.6; }
+.team-empty { padding: 18px 20px; margin: 0; color: var(--dash-fg-2); }
+
+.team-add {
+  display: grid;
+  grid-template-columns: 2.2fr 1fr auto;
+  gap: 14px;
+  align-items: start;
+}
+.team-add .btn { align-self: end; }
+.team-add-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.team-add-hint { grid-column: 1 / -1; margin: 0; }
+.team-id { min-width: 0; }
+
+@media (max-width: 1000px) {
+  .team-add-fields { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .team-add { grid-template-columns: 1fr; }
+  .team-mail { max-width: 180px; }
+}
+
+/* Whether a row can actually sign in, and what the chosen role opens. */
+.team-signin {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.team-signin--on { background: var(--dash-role-soft); color: var(--dash-role); }
+.team-signin--off { background: var(--dash-card-2); color: var(--dash-fg-2); }
+.team-grants {
+  margin: 6px 0 0;
+  max-width: 340px;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--dash-fg-2);
+}
+
+/* The link and QR code the owner sends a teammate who has no sign-in yet. */
+.team-invite {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.team-invite-qrbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+/* White mat: a code printed on the dark card loses contrast when scanned. */
+.team-invite-qr {
+  width: 164px;
+  height: 164px;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: 10px;
+  background: #fff;
+}
+.team-invite-qr--pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dash-card-2);
+  color: var(--dash-fg-2);
+}
+.team-invite-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--dash-fg-2);
+  text-decoration: none;
+}
+.team-invite-download:hover { color: var(--dash-role); }
+.team-invite-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.team-invite-head h4 { margin: 0; font-size: 0.98rem; }
+.team-invite-main { min-width: 0; }
+.team-invite-link { display: flex; gap: 8px; margin-top: 10px; }
+.team-invite-link input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+}
+.team-invite-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.team-invite-steps {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--dash-fg-2);
+}
+
+@media (max-width: 720px) {
+  .team-invite { grid-template-columns: 1fr; }
+}
+
+/* Staff dashboard: listing switcher, board filters, read-only roster. */
+.staff-switcher {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.staff-switcher-role {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--dash-role);
+}
+.staff-you {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--dash-role-soft);
+  color: var(--dash-role);
+  font-size: 0.68rem;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+.staff-no-team {
+  max-width: 560px;
+  margin: 40px auto;
+  padding: 36px 32px;
+  text-align: center;
 }
 

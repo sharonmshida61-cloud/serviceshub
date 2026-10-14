@@ -2,6 +2,7 @@ const express = require("express");
 const prisma = require("../utils/prisma");
 const { requireAuth } = require("../middleware/auth");
 const { requireRole } = require("../middleware/role");
+const { permissionsFor } = require("../utils/staffPermissions");
 
 const router = express.Router();
 
@@ -48,15 +49,34 @@ router.get("/business/:businessId", requireAuth, requireRole("BUSINESS_OWNER", "
   if (activeRole === "BUSINESS_OWNER" && business.ownerId !== req.user.id) {
     return res.status(403).json({ error: "Not your business" });
   }
+
+  const where = { businessId: business.id };
   if (activeRole === "EMPLOYEE") {
     const staffRecord = await prisma.businessEmployee.findFirst({
       where: { businessId: business.id, userId: req.user.id, active: true },
     });
     if (!staffRecord) return res.status(403).json({ error: "You are not staff at this business" });
+
+    const perms = permissionsFor(staffRecord.title);
+    if (perms.scope === "none") {
+      return res.status(403).json({ error: `Your role (${staffRecord.title}) does not open the booking list` });
+    }
+    // A tradesperson works their own jobs plus whatever is on today's board and
+    // not yet claimed, so nothing they need goes unnoticed.
+    if (perms.scope === "mine") {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+      where.OR = [
+        { employeeId: staffRecord.id },
+        { employeeId: null, scheduledAt: { gte: startOfDay, lt: endOfDay } },
+      ];
+    }
   }
 
   const bookings = await prisma.booking.findMany({
-    where: { businessId: business.id },
+    where,
     include: { service: true, customer: true, payment: true },
     orderBy: { scheduledAt: "asc" },
   });
@@ -76,12 +96,13 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   const isCustomer = req.user.id === booking.customerId;
   const isOwner = activeRole === "BUSINESS_OWNER" && req.user.id === booking.business.ownerId;
   const isAdmin = activeRole === "ADMIN";
-  let isStaff = false;
-  if (activeRole === "EMPLOYEE") {
-    isStaff = !!(await prisma.businessEmployee.findFirst({
-      where: { businessId: booking.businessId, userId: req.user.id, active: true },
-    }));
-  }
+  const staffRecord =
+    activeRole === "EMPLOYEE"
+      ? await prisma.businessEmployee.findFirst({
+          where: { businessId: booking.businessId, userId: req.user.id, active: true },
+        })
+      : null;
+  const isStaff = !!staffRecord;
 
   // Customers may only cancel their own pending/confirmed bookings.
   if (isCustomer && !isOwner && !isStaff && !isAdmin) {
@@ -90,8 +111,59 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
     return res.status(403).json({ error: "You do not have permission to update this booking" });
   }
 
+  // Turning a booking down is the owner's call, or a manager's — a tradesperson
+  // working the day can confirm and finish, not reject someone else's job.
+  if (isStaff && !isOwner && !isAdmin) {
+    const perms = permissionsFor(staffRecord.title);
+    if (!perms.assign && ["DECLINED", "CANCELLED"].includes(status)) {
+      return res.status(403).json({ error: `Your role (${staffRecord.title}) cannot decline or cancel bookings` });
+    }
+  }
+
   const updated = await prisma.booking.update({ where: { id: req.params.id }, data: { status } });
   res.json(updated);
+});
+
+// Hand a booking to a teammate — or back to the unclaimed pool.
+router.patch("/:id/assign", requireAuth, async (req, res) => {
+  const { employeeId } = req.body || {};
+  const booking = await prisma.booking.findUnique({ where: { id: req.params.id }, include: { business: true } });
+  if (!booking) return res.status(404).json({ error: "Booking not found" });
+
+  const activeRole = req.user.currentRole || req.user.role;
+  if (activeRole !== "ADMIN") {
+    const isOwner = booking.business.ownerId === req.user.id;
+    const membership = isOwner
+      ? null
+      : await prisma.businessEmployee.findFirst({
+          where: { businessId: booking.businessId, userId: req.user.id, active: true },
+        });
+    if (!isOwner && !(membership && permissionsFor(membership.title).assign)) {
+      return res.status(403).json({ error: "Only the owner or a manager can assign jobs" });
+    }
+  }
+
+  let staff = null;
+  const wanted = String(employeeId ?? "").trim();
+  if (wanted) {
+    staff = await prisma.businessEmployee.findFirst({
+      where: { id: wanted, businessId: booking.businessId },
+      include: { user: { select: { id: true, name: true, avatarUrl: true } } },
+    });
+    if (!staff) return res.status(400).json({ error: "That teammate is not on this listing" });
+  }
+
+  const updated = await prisma.booking.update({
+    where: { id: booking.id },
+    data: { employeeId: staff ? staff.id : null },
+    include: { service: true, customer: true, payment: true },
+  });
+  res.json({
+    ...updated,
+    assignedTo: staff
+      ? { id: staff.id, name: staff.staffName || staff.user?.name || "Team member", title: staff.title }
+      : null,
+  });
 });
 
 // Customer moves their own booking to a new time, or reactivates a cancelled one.

@@ -1,14 +1,44 @@
 const express = require("express");
+const QRCode = require("qrcode");
 const prisma = require("../utils/prisma");
 const { requireAuth, optionalAuth } = require("../middleware/auth");
 const { requireRole } = require("../middleware/role");
 const { readCoords } = require("../utils/coords");
 const { CITIES } = require("../data/eastAfrica");
+const { frontendOrigin } = require("../utils/frontendOrigin");
+const { INVITE_TTL_DAYS, newInviteSeed, signInviteToken } = require("../utils/inviteToken");
+const {
+  permissionsFor,
+  staffMembership,
+  publicUser,
+  grantStaffRole,
+  revokeStaffRole,
+} = require("../utils/staffPermissions");
 
 const router = express.Router();
 
 function parseJsonFields(biz) {
   return { ...biz, attributes: JSON.parse(biz.attributes || "{}") };
+}
+
+// The owner's own site. People type "pipepro.co.ke" rather than a full URL, so
+// the scheme is added for them; anything that is not an http(s) link is refused
+// so a listing can never carry a javascript: or data: href.
+function normalizeWebsite(value) {
+  if (value === undefined) return undefined;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  let url;
+  try {
+    url = new URL(/^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
+  } catch {
+    throw new Error('Website must be a link, like pipepro.co.ke or https://pipepro.co.ke');
+  }
+  if (!["http:", "https:"].includes(url.protocol) || !url.hostname.includes(".")) {
+    throw new Error('Website must be a link, like pipepro.co.ke or https://pipepro.co.ke');
+  }
+  if (trimmed.length > 200) throw new Error("Website link is too long (200 characters max)");
+  return url.pathname === "/" ? url.origin : url.href;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,9 +141,66 @@ router.get("/cities", async (req, res) => {
 router.get("/mine", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req, res) => {
   const businesses = await prisma.business.findMany({
     where: { ownerId: req.user.id },
-    include: { category: true, services: true, employees: { include: { user: true } } },
+    include: {
+      category: true,
+      services: true,
+      employees: {
+        include: {
+          user: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true } },
+        },
+      },
+    },
   });
   res.json(businesses.map(parseJsonFields));
+});
+
+// ---------------------------------------------------------------------------
+// STAFF WORKSPACE: the teammate's own view. Everything is keyed off the signed-in
+// user's active BusinessEmployee rows, so a worker never has to know a business
+// id — the listing their owner added them to is what comes back.
+// ---------------------------------------------------------------------------
+router.get("/staff/mine", requireAuth, async (req, res) => {
+  const rows = await prisma.businessEmployee.findMany({
+    where: { userId: req.user.id, active: true },
+    include: {
+      business: {
+        include: {
+          category: { select: { id: true, name: true, slug: true, icon: true } },
+          owner: { select: { id: true, name: true, email: true, phone: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  res.json(
+    rows.map((row) => {
+      const b = row.business;
+      return {
+        employeeId: row.id,
+        title: row.title,
+        joinedAt: row.createdAt,
+        permissions: permissionsFor(row.title),
+        business: {
+          id: b.id,
+          name: b.name,
+          status: b.status,
+          city: b.city,
+          address: b.address,
+          latitude: b.latitude,
+          longitude: b.longitude,
+          phone: b.phone,
+          email: b.email,
+          website: b.website,
+          avgRating: b.avgRating,
+          reviewCount: b.reviewCount,
+          category: b.category,
+          ownerId: b.ownerId,
+          owner: b.owner,
+        },
+      };
+    })
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -190,7 +277,15 @@ router.get("/:id", optionalAuth, async (req, res) => {
       category: true,
       services: { where: { active: true } },
       reviews: { include: { customer: true }, orderBy: { createdAt: "desc" } },
-      employees: { include: { user: true }, where: { active: true } },
+      employees: {
+        where: { active: true },
+        select: {
+          id: true,
+          title: true,
+          staffName: true,
+          user: { select: { id: true, name: true, avatarUrl: true } },
+        },
+      },
       availability: true,
     },
   });
@@ -211,12 +306,14 @@ router.get("/:id", optionalAuth, async (req, res) => {
 
 // Create a new business listing (defaults to PENDING until admin approves)
 router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req, res) => {
-  const { name, description, categorySlug, address, city, phone, email, attributes } = req.body || {};
+  const { name, description, categorySlug, address, city, phone, email, website, attributes } = req.body || {};
   if (!name || !categorySlug) return res.status(400).json({ error: "name and categorySlug are required" });
 
   let coords;
+  let site;
   try {
     coords = readCoords(req.body);
+    site = normalizeWebsite(website);
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -234,6 +331,7 @@ router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req
       city,
       phone,
       email,
+      website: site,
       attributes: JSON.stringify(attributes || {}),
       status: "PENDING",
       ...coords,
@@ -250,10 +348,12 @@ router.patch("/:id", requireAuth, async (req, res) => {
     return res.status(403).json({ error: "Only the business owner or an admin can edit this listing" });
   }
 
-  const { name, description, address, city, phone, email, attributes } = req.body || {};
+  const { name, description, address, city, phone, email, website, attributes } = req.body || {};
   let coords;
+  let site;
   try {
     coords = readCoords(req.body);
+    site = normalizeWebsite(website);
   } catch (e) {
     return res.status(400).json({ error: e.message });
   }
@@ -266,6 +366,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
       ...(city !== undefined && { city }),
       ...(phone !== undefined && { phone }),
       ...(email !== undefined && { email }),
+      ...(website !== undefined && { website: site }),
       ...(attributes !== undefined && { attributes: JSON.stringify(attributes) }),
       ...coords,
     },
@@ -275,41 +376,250 @@ router.patch("/:id", requireAuth, async (req, res) => {
 
 // -------------------- Employees (owner manages staff) ----------------------
 
+// The role an owner gives a teammate. It is stored in `title`, which the public
+// team list already renders as "Name — Role".
+const STAFF_ROLES = ["Manager", "Technician", "Craftsman", "Reception", "Support"];
+
+function resolveStaffRole(role, title) {
+  const named = STAFF_ROLES.find((r) => r.toLowerCase() === String(role || "").toLowerCase());
+  if (named) return named;
+  const custom = String(title || "").trim().slice(0, 40);
+  return custom || "Staff";
+}
+
+function ownsBusiness(business, user) {
+  return business.ownerId === user.id || (user.currentRole || user.role) === "ADMIN";
+}
+
+function cleanField(value, max, { email = false } = {}) {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return null;
+  if (trimmed.length > max) throw new Error(`That entry is too long (${max} characters max)`);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed)) {
+    throw new Error("Email needs to look like amina@email.com");
+  }
+  return trimmed;
+}
+
+async function findTeamTarget({ userId, email }) {
+  if (userId) return prisma.user.findUnique({ where: { id: String(userId) } });
+  const trimmed = String(email || "").trim();
+  if (!trimmed) return null;
+  return prisma.user.findFirst({ where: { email: { equals: trimmed, mode: "insensitive" } } });
+}
+
+// Add a teammate. Name, phone and email are all optional — an email that matches
+// a Nearby account links them so they can sign in, and anyone else is kept as the
+// owner's own contact entry.
 router.post("/:id/employees", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
-  const activeRole = req.user.currentRole || req.user.role;
-  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
-    return res.status(403).json({ error: "Only the business owner can add employees" });
-  }
-  const { userId, title } = req.body || {};
-  if (!userId) return res.status(400).json({ error: "userId is required (the employee must already have an account)" });
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) return res.status(404).json({ error: "No user found with that id" });
-
-  // Promote the user to EMPLOYEE role if they were a plain customer
-  if (user.role === "CUSTOMER") {
-    await prisma.user.update({ where: { id: userId }, data: { role: "EMPLOYEE" } });
+  if (!ownsBusiness(business, req.user)) {
+    return res.status(403).json({ error: "Only the business owner can add team members" });
   }
 
-  const employee = await prisma.businessEmployee.create({
-    data: { businessId: business.id, userId, title: title || "Staff" },
-  });
+  const body = req.body || {};
+  let staffName, staffPhone, staffEmail;
+  try {
+    staffName = cleanField(body.name, 60);
+    staffPhone = cleanField(body.phone, 30);
+    staffEmail = cleanField(body.email, 120, { email: true });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const userId = body.userId ? String(body.userId) : null;
+  if (!userId && !staffName && !staffPhone && !staffEmail) {
+    return res.status(400).json({ error: "Give them a name, phone or email so you recognise them later." });
+  }
+
+  const account = userId || staffEmail ? await findTeamTarget({ userId, email: staffEmail }) : null;
+  if (userId && !account) return res.status(404).json({ error: "No user found with that id" });
+  if (account && account.id === business.ownerId) {
+    return res.status(400).json({ error: "You own this listing, so you are already on the team." });
+  }
+
+  const details = {
+    title: resolveStaffRole(body.role, body.title),
+    staffName,
+    staffPhone,
+    staffEmail,
+  };
+
+  if (account) {
+    const existing = await prisma.businessEmployee.findUnique({
+      where: { businessId_userId: { businessId: business.id, userId: account.id } },
+    });
+    if (existing?.active) {
+      return res.status(409).json({ error: `${staffName || account.name} is already on your team.` });
+    }
+    if (existing) {
+      await grantStaffRole(account);
+      return res.json(await prisma.businessEmployee.update({ where: { id: existing.id }, data: { ...details, active: true } }));
+    }
+    await grantStaffRole(account);
+    const employee = await prisma.businessEmployee.create({
+      data: { businessId: business.id, userId: account.id, ...details },
+    });
+    return res.status(201).json(employee);
+  }
+
+  if (staffEmail) {
+    const dupe = await prisma.businessEmployee.findFirst({
+      where: { businessId: business.id, active: true, staffEmail: { equals: staffEmail, mode: "insensitive" } },
+    });
+    if (dupe) return res.status(409).json({ error: `${staffName || staffEmail} is already on your team.` });
+  }
+  const employee = await prisma.businessEmployee.create({ data: { businessId: business.id, ...details } });
   res.status(201).json(employee);
 });
 
+// A teammate who has no account yet is sent a link and a QR code: opening either
+// one starts a sign-up scoped to this listing and this role, and the account it
+// creates lands on the staff dashboard. Asking again mints a new seed, so the
+// link or picture sent before stops working.
+router.post("/:id/employees/:employeeId/invite", requireAuth, async (req, res) => {
+  const business = await prisma.business.findUnique({ where: { id: req.params.id } });
+  if (!business) return res.status(404).json({ error: "Business not found" });
+  if (!ownsBusiness(business, req.user)) {
+    return res.status(403).json({ error: "Only the business owner can invite team members" });
+  }
+  const member = await prisma.businessEmployee.findFirst({
+    where: { id: req.params.employeeId, businessId: business.id },
+  });
+  if (!member) return res.status(404).json({ error: "That teammate is not on this listing" });
+  if (!member.active) {
+    return res.status(400).json({ error: "Bring them back on the team before sending an invitation." });
+  }
+  if (member.userId) {
+    return res.status(409).json({ error: `${member.staffName || "That teammate"} already has a sign-in.` });
+  }
+
+  const seed = newInviteSeed();
+  await prisma.businessEmployee.update({ where: { id: member.id }, data: { inviteSeed: seed } });
+  const inviteUrl = `${frontendOrigin()}/invite/${signInviteToken(member.id, seed)}`;
+  const qrDataUrl = await QRCode.toDataURL(inviteUrl, {
+    errorCorrectionLevel: "H",
+    type: "image/png",
+    width: 300,
+    margin: 2,
+  });
+
+  res.json({
+    url: inviteUrl,
+    qrDataUrl,
+    expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+    title: member.title,
+    staffName: member.staffName,
+    staffEmail: member.staffEmail,
+    businessName: business.name,
+  });
+});
+
+// The roster a Manager reads from their own dashboard. Owners already get the
+// same rows through /mine, so this only opens the team section to titles that
+// have one — everyone else is refused.
+router.get("/:id/employees", requireAuth, async (req, res) => {
+  const business = await prisma.business.findUnique({ where: { id: req.params.id } });
+  if (!business) return res.status(404).json({ error: "Business not found" });
+
+  let membership = null;
+  if (business.ownerId !== req.user.id && (req.user.currentRole || req.user.role) !== "ADMIN") {
+    membership = await staffMembership(req.user.id, business.id);
+    if (!membership) return res.status(403).json({ error: "You are not staff at this listing" });
+    if (!permissionsFor(membership.title).sections.includes("team")) {
+      return res.status(403).json({ error: `Your role (${membership.title}) does not open the team list` });
+    }
+  }
+
+  const members = await prisma.businessEmployee.findMany({
+    where: { businessId: business.id, active: true },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      title: true,
+      staffName: true,
+      staffPhone: true,
+      staffEmail: true,
+      createdAt: true,
+      userId: true,
+      user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+    },
+  });
+  res.json(
+    members.map((m) => ({
+      ...m,
+      name: m.staffName || m.user?.name || "Team member",
+      isMe: membership ? m.id === membership.id : m.userId === req.user.id,
+    }))
+  );
+});
+
+// Change a teammate's role, contact details, or activate/deactivate them.
+router.patch("/:id/employees/:employeeId", requireAuth, async (req, res) => {
+  const business = await prisma.business.findUnique({ where: { id: req.params.id } });
+  if (!business) return res.status(404).json({ error: "Business not found" });
+  if (!ownsBusiness(business, req.user)) {
+    return res.status(403).json({ error: "Only the business owner can change the team" });
+  }
+  const member = await prisma.businessEmployee.findFirst({
+    where: { id: req.params.employeeId, businessId: business.id },
+  });
+  if (!member) return res.status(404).json({ error: "That teammate is not on this listing" });
+
+  const { role, title, active, name, phone, email } = req.body || {};
+  const data = {};
+  if (role !== undefined || title !== undefined) data.title = resolveStaffRole(role, title);
+  if (active !== undefined) data.active = Boolean(active);
+  try {
+    if (name !== undefined) data.staffName = cleanField(name, 60);
+    if (phone !== undefined) data.staffPhone = cleanField(phone, 30);
+    if (email !== undefined) data.staffEmail = cleanField(email, 120, { email: true });
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  if (!Object.keys(data).length) return res.status(400).json({ error: "Nothing to change" });
+
+  // A contact-only row that now carries a registered email becomes a real login,
+  // which is how an owner hands someone access after adding them by name first.
+  let account = null;
+  if (!member.userId && data.staffEmail) {
+    account = await findTeamTarget({ email: data.staffEmail });
+    if (account && account.id !== business.ownerId) data.userId = account.id;
+  }
+
+  try {
+    const updated = await prisma.businessEmployee.update({ where: { id: member.id }, data });
+    if (account && data.userId) await grantStaffRole(account);
+    res.json({ ...updated, user: account && data.userId ? publicUser(account) : null });
+  } catch (e) {
+    if (e.code === "P2002") {
+      return res.status(409).json({ error: "That account is already on your team." });
+    }
+    throw e;
+  }
+});
+
+// Remove a teammate. Members with booking history are kept (deactivated) so the
+// owner's past records still name them; ?permanent=true drops the row entirely.
 router.delete("/:id/employees/:employeeId", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
-  const activeRole = req.user.currentRole || req.user.role;
-  if (business.ownerId !== req.user.id && activeRole !== "ADMIN") {
-    return res.status(403).json({ error: "Only the business owner can remove employees" });
+  if (!ownsBusiness(business, req.user)) {
+    return res.status(403).json({ error: "Only the business owner can remove team members" });
   }
-  await prisma.businessEmployee.update({
-    where: { id: req.params.employeeId },
-    data: { active: false },
+  const member = await prisma.businessEmployee.findFirst({
+    where: { id: req.params.employeeId, businessId: business.id },
   });
+  if (!member) return res.status(404).json({ error: "That teammate is not on this listing" });
+
+  if (req.query.permanent === "true") {
+    await prisma.businessEmployee.delete({ where: { id: member.id } });
+    await revokeStaffRole(member.userId);
+    return res.status(204).end();
+  }
+
+  await prisma.businessEmployee.update({ where: { id: member.id }, data: { active: false } });
+  await revokeStaffRole(member.userId);
   res.status(204).end();
 });
 

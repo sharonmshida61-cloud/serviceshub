@@ -14,18 +14,13 @@ import AdminDashboard from "./pages/AdminDashboard.jsx";
 import Settings from "./pages/Settings.jsx";
 import ForgotPassword from "./pages/ForgotPassword.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
+import InviteAccept from "./pages/InviteAccept.jsx";
 import Browse from "./pages/Browse.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
 import LanguageSwitcher from "./components/LanguageSwitcher.jsx";
 import { readToken, writeToken } from "./utils/tokenStore.js";
-
-const DASHBOARD_BY_ROLE = {
-  CUSTOMER: "/dashboard/customer",
-  BUSINESS_OWNER: "/dashboard/business",
-  EMPLOYEE: "/dashboard/employee",
-  ADMIN: "/dashboard/admin",
-};
+import { dashboardPathFor } from "./utils/dashboardRoute.js";
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:4000/api" : "/api")).replace(/\/$/, "");
 
@@ -43,7 +38,7 @@ export default function App() {
   const currentRole = user?.currentRole || user?.role;
   const availableRoles = Array.isArray(user?.roles) ? user.roles : (user?.role ? [user.role] : []);
 
-  const SHELL_DASHBOARDS = ["/dashboard/customer", "/dashboard/business", "/dashboard/admin"];
+  const SHELL_DASHBOARDS = ["/dashboard/customer", "/dashboard/business", "/dashboard/employee", "/dashboard/admin"];
   const inShell = SHELL_DASHBOARDS.some((p) => location.pathname.startsWith(p));
 
   // The stored token is validated asynchronously; assume signed-in while it
@@ -78,7 +73,7 @@ export default function App() {
             )}
             {!loading && user && (
               <>
-                <NavLink to={DASHBOARD_BY_ROLE[currentRole]} onClick={closeMobileNav}>{t("nav.dashboard")}</NavLink>
+                <NavLink to={dashboardPathFor(user)} onClick={closeMobileNav}>{t("nav.dashboard")}</NavLink>
                 <NavLink to="/settings" onClick={closeMobileNav}>{t("nav.settings")}</NavLink>
                 <NotificationBell />
                 <div style={{ position: "relative", display: "inline-block" }}>
@@ -172,6 +167,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/invite/:token" element={<InviteAccept />} />
         <Route path="/business/:id" element={<BusinessDetail />} />
         <Route path="/settings" element={
           <ProtectedRoute>

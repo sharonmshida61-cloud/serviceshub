@@ -154,7 +154,7 @@ router.get("/business/:businessId", requireAuth, async (req, res, next) => {
         });
         return {
           employeeId: emp.employeeId,
-          name: employee?.user.name || "Unknown",
+          name: employee?.user?.name || employee?.staffName || "Unknown",
           title: employee?.title || "Staff",
           completedBookings: emp._count.id,
           revenue: emp._sum.priceCents || 0,

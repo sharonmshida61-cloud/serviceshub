@@ -6,6 +6,7 @@ import LocationMap from "./LocationMap.jsx";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext.jsx";
 import { describeAttributes, getBusinessCover } from "../utils/businessCovers.js";
+import { siteLabel } from "../utils/website.js";
 
 // Summary of a listing, opened over the Browse page so searching never loses
 // its place. Booking and chat stay on the full /business/:id page.
@@ -52,6 +53,11 @@ export default function BusinessQuickView({ business, onClose }) {
           <div className="attr-list">
             {business.city && <span className="attr-chip">📍 {business.city}</span>}
             {business.address && <span className="attr-chip">{business.address}</span>}
+            {business.website && (
+              <a className="attr-chip attr-chip--link" href={business.website} target="_blank" rel="noopener noreferrer">
+                🌐 {siteLabel(business.website)}
+              </a>
+            )}
             {services.length > 0 && (
               <span className="attr-chip">
                 {t("common.from")} {formatMoney(services[0].priceCents)}

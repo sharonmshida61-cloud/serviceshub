@@ -19,6 +19,7 @@ model User {
   currentRole       String                  @default("CUSTOMER")
   role              String                  @default("CUSTOMER")
   avatarUrl         String?
+  nationalIdUrl     String?
   bannedAt          DateTime?
   banReason         String?
   createdAt         DateTime                @default(now())
@@ -64,6 +65,7 @@ model Business {
   longitude                   Float?
   phone                       String?
   email                       String?
+  website                     String?
   status                      String                       @default("PENDING")
   attributes                  String                       @default("{}")
   avgRating                   Float                        @default(0)
@@ -88,14 +90,18 @@ model Business {
 }
 
 model BusinessEmployee {
-  id         String   @id @default(uuid())
-  businessId String
-  userId     String
-  title      String   @default("Staff")
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  business   Business @relation(fields: [businessId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  id          String    @id @default(uuid())
+  businessId  String
+  userId      String?
+  staffName   String?
+  staffPhone  String?
+  staffEmail  String?
+  title       String    @default("Staff")
+  active      Boolean   @default(true)
+  inviteSeed  String?
+  createdAt   DateTime  @default(now())
+  business    Business  @relation(fields: [businessId], references: [id])
+  user        User?     @relation(fields: [userId], references: [id])
 
   @@unique([businessId, userId])
 }

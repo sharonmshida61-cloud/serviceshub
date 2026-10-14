@@ -58,6 +58,16 @@ export function AuthProvider({ children }) {
     return user;
   }
 
+  // The invitation form returns the finished staff session, so the person who
+  // used the owner's link never has to sign in again.
+  async function acceptInvite(payload) {
+    const { token, user } = await api.inviteRegister(payload);
+    writeToken(token, true);
+    setAuthNotice(null);
+    setUser(user);
+    return user;
+  }
+
   async function updateProfile(payload) {
     const { user: updated } = await api.updateProfile(payload);
     setUser(updated);
@@ -79,6 +89,7 @@ export function AuthProvider({ children }) {
         login,
         loginWithGoogle,
         register,
+        acceptInvite,
         logout,
         updateProfile,
       }}

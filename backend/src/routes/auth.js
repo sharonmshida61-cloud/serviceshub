@@ -11,6 +11,9 @@ const uploadRoot = require("../utils/uploadRoot");
 const profilePhoto = require("../utils/profilePhoto");
 const { requireAuth } = require("../middleware/auth");
 const { verifyGoogleIdToken } = require("../utils/googleToken");
+const { grantStaffRole, parseRoles, SWITCHABLE_ROLES } = require("../utils/staffPermissions");
+const { frontendOrigin } = require("../utils/frontendOrigin");
+const { readInviteToken } = require("../utils/inviteToken");
 const { sendEmail, emailConfigured } = require("../utils/mailer");
 const { resetEmail } = require("../utils/resetEmail");
 const {
@@ -79,6 +82,48 @@ function withProfilePhoto(req, res, next) {
     }
     res.status(400).json({ error: err.message || "Could not read the uploaded photo" });
   });
+}
+
+// A business can add a worker by email long before that person has an account.
+// When the address finally registers, those contact-only team rows become a real
+// login, which is what sends the worker to the staff dashboard.
+async function claimStaffInvites(user) {
+  const rows = await prisma.businessEmployee.findMany({
+    where: { userId: null, active: true, staffEmail: { equals: user.email, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (!rows.length) return null;
+  await prisma.businessEmployee.updateMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    data: { userId: user.id },
+  });
+  return grantStaffRole(user);
+}
+
+// The roles column and the team rows are separate facts, and signing in is where
+// they are reconciled: EMPLOYEE belongs to the role list exactly while an active
+// team row exists, and nobody lands on a staff dashboard with no team behind it.
+async function reconcileStaffRole(user) {
+  const onTeam = !!(await prisma.businessEmployee.findFirst({
+    where: { userId: user.id, active: true },
+  }));
+  const roles = parseRoles(user);
+  const listed = roles.includes("EMPLOYEE");
+  const data = {};
+
+  if (onTeam !== listed) {
+    const next = onTeam ? ["EMPLOYEE", ...roles] : roles.filter((r) => r !== "EMPLOYEE");
+    data.roles = JSON.stringify(next.length ? next : ["CUSTOMER"]);
+  }
+  const finalRoles = data.roles ? JSON.parse(data.roles) : roles;
+  if ((user.currentRole || user.role) === "EMPLOYEE" && !onTeam) {
+    const fallback = finalRoles.includes("BUSINESS_OWNER") ? "BUSINESS_OWNER" : "CUSTOMER";
+    data.currentRole = fallback;
+    data.role = fallback;
+  }
+
+  if (!Object.keys(data).length) return user;
+  return prisma.user.update({ where: { id: user.id }, data });
 }
 
 function registerInput(req) {
@@ -162,10 +207,150 @@ router.post("/register", withProfilePhoto, async (req, res) => {
       });
     }
 
+    const invited = await claimStaffInvites(user);
+    if (invited) user = invited;
+
     const token = signToken(user);
     res.status(201).json({ token, user: sanitize(user) });
   } catch (err) {
     console.error("[register]", err?.code || err?.message || err);
+    res.status(500).json({ error: "Could not create your account. Please try again." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// TEAM INVITATION: the link or QR code the owner sends opens a sign-up that
+// belongs to one listing and one role. The account it creates is staff from
+// the first sign-in, so it lands straight on that listing's dashboard.
+// ---------------------------------------------------------------------------
+
+const INVALID_INVITE = "This invitation link is no longer valid. Ask your owner to send a new one.";
+const USED_INVITE = "This invitation has already been used. Sign in with the account you created.";
+
+const inviteUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: profilePhoto.MAX_BYTES },
+  fileFilter: profilePhoto.filterFor("The national ID photo"),
+}).single("idfile");
+
+function withIdPhoto(req, res, next) {
+  inviteUpload(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ error: "That photo is too large. Maximum size is 5 MB." });
+    }
+    res.status(400).json({ error: err.message || "Could not read the uploaded photo" });
+  });
+}
+
+// The team row a token points at — or the reason it can no longer be used. A
+// spent link fails on userId, a superseded one on the seed, an old one on the
+// token's own expiry.
+async function inviteTarget(token) {
+  const payload = readInviteToken(token);
+  if (!payload) return { status: 400, error: INVALID_INVITE };
+  const member = await prisma.businessEmployee.findUnique({
+    where: { id: payload.sub },
+    include: { business: { include: { owner: { select: { name: true } } } } },
+  });
+  if (!member) return { status: 400, error: INVALID_INVITE };
+  if (member.userId) return { status: 409, error: USED_INVITE };
+  if (member.inviteSeed !== payload.sid) return { status: 400, error: INVALID_INVITE };
+  if (!member.active) return { status: 400, error: "This team no longer has an opening for you." };
+  return { member };
+}
+
+router.get("/invite/:token", async (req, res) => {
+  const target = await inviteTarget(req.params.token);
+  if (target.error) return res.status(target.status).json({ error: target.error });
+  const { member } = target;
+  res.json({
+    business: member.business.name,
+    city: member.business.city,
+    ownerName: member.business.owner?.name || null,
+    role: member.title,
+    name: member.staffName,
+    email: member.staffEmail,
+  });
+});
+
+const inviteRegisterSchema = z
+  .object({
+    name: z.string().trim().min(2, "Enter your full name").max(80),
+    email: z.string().email("Enter a valid email address"),
+    phone: z
+      .string({ required_error: "Phone number is required" })
+      .trim()
+      .min(7, "Enter a valid phone number")
+      .max(30, "That phone number looks too long"),
+    password: z.string().min(6, "Use at least 6 characters"),
+    confirmPassword: z.string().min(1, "Confirm your password"),
+  })
+  .refine((v) => v.password === v.confirmPassword, {
+    message: "The two passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+router.post("/invite/register", withIdPhoto, async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "A photo of your national ID is required" });
+
+  const target = await inviteTarget(req.body?.token);
+  if (target.error) return res.status(target.status).json({ error: target.error });
+
+  const parsed = inviteRegisterSchema.safeParse(req.body || {});
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  const { name, email, phone, password } = parsed.data;
+
+  try {
+    if (await prisma.user.findUnique({ where: { email } })) {
+      return res.status(409).json({ error: "An account with this email already exists. Sign in instead." });
+    }
+
+    const member = target.member;
+    const created = await prisma.user.create({
+      data: {
+        name,
+        email,
+        phone,
+        passwordHash: await bcrypt.hash(password, 10),
+        roles: JSON.stringify(["EMPLOYEE"]),
+        currentRole: "EMPLOYEE",
+        role: "EMPLOYEE",
+      },
+    });
+
+    let user = created;
+    try {
+      const filename = profilePhoto.filename(req.file.originalname);
+      const dir = path.join(uploadRoot, "ids", created.id);
+      await fs.promises.mkdir(dir, { recursive: true });
+      await fs.promises.writeFile(path.join(dir, filename), req.file.buffer);
+      user = await prisma.user.update({
+        where: { id: created.id },
+        data: { nationalIdUrl: profilePhoto.url(req, created.id, filename, "ids") },
+      });
+    } catch (err) {
+      // Without the ID picture the owner has nothing to check them against, so
+      // the account is removed rather than left incomplete.
+      await prisma.user.delete({ where: { id: created.id } }).catch(() => {});
+      throw err;
+    }
+
+    // The link is now spent: the row names the account it created and loses its
+    // seed, so a second person scanning the same QR gets a used-invitation error.
+    await prisma.businessEmployee.update({
+      where: { id: member.id },
+      data: {
+        userId: user.id,
+        staffEmail: email,
+        staffName: member.staffName || name,
+        inviteSeed: null,
+      },
+    });
+
+    res.status(201).json({ token: signToken(user), user: sanitize(user) });
+  } catch (err) {
+    console.error("[invite-register]", err?.code || err?.message || err);
     res.status(500).json({ error: "Could not create your account. Please try again." });
   }
 });
@@ -187,8 +372,12 @@ router.post("/login", async (req, res) => {
     });
   }
 
-  const token = signToken(user, remember);
-  res.json({ token, user: sanitize(user) });
+  let account = await reconcileStaffRole(user);
+  // The owner may have added this address to a team long after the account was
+  // made, so signing in also claims those contact-only rows.
+  account = (await claimStaffInvites(account)) || account;
+  const token = signToken(account, remember);
+  res.json({ token, user: sanitize(account) });
 });
 
 const googleSchema = z.object({
@@ -245,6 +434,9 @@ router.post("/google", async (req, res) => {
         reason: user.banReason || "Please contact support for more information.",
       });
     }
+
+    const invited = await claimStaffInvites(user);
+    if (invited) user = invited;
 
     const token = signToken(user, remember);
     res.json({ token, user: sanitize(user) });
@@ -329,13 +521,6 @@ function throttled(email) {
     }
   }
   return false;
-}
-
-// The link has to point at the deployed SPA, not at this API.
-function frontendOrigin() {
-  const candidates = [process.env.FRONTEND_URL, ...(process.env.CORS_ORIGIN || "").split(",")];
-  const match = candidates.map((o) => (o || "").trim().replace(/\/+$/, "")).find((o) => o.startsWith("http"));
-  return match || "http://localhost:5173";
 }
 
 async function userFromResetToken(token) {
@@ -432,8 +617,7 @@ router.post("/reset-password", async (req, res) => {
 // Switch active role (for users with multiple roles)
 router.post("/switchRole/:role", requireAuth, async (req, res) => {
   const { role } = req.params;
-  const validRoles = ["CUSTOMER", "BUSINESS_OWNER"];
-  if (!validRoles.includes(role)) {
+  if (!SWITCHABLE_ROLES.includes(role)) {
     return res.status(400).json({ error: "Invalid role" });
   }
 

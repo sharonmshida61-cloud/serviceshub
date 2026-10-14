@@ -8,6 +8,7 @@ import CitySelect from "../components/CitySelect.jsx";
 import useCities from "../hooks/useCities.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
+import { dashboardPathFor } from "../utils/dashboardRoute.js";
 
 const ROLE_OPTIONS = [
   {
@@ -154,7 +155,7 @@ export default function Register() {
 
       const user = await register(payload);
 
-      navigate((user.currentRole || user.role) === "BUSINESS_OWNER" ? "/dashboard/business" : "/dashboard/customer");
+      navigate(dashboardPathFor(user));
     } catch (err) {
       setError(err.message);
     } finally {

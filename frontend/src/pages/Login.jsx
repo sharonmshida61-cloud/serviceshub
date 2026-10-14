@@ -4,13 +4,7 @@ import AuthAside from "../components/AuthAside.jsx";
 import EyeIcon from "../components/EyeIcon.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useLanguage } from "../context/LanguageContext.jsx";
-
-const DASHBOARD_BY_ROLE = {
-  CUSTOMER: "/dashboard/customer",
-  BUSINESS_OWNER: "/dashboard/business",
-  EMPLOYEE: "/dashboard/employee",
-  ADMIN: "/dashboard/admin",
-};
+import { dashboardPathFor } from "../utils/dashboardRoute.js";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -63,7 +57,7 @@ export default function Login() {
     setBusy(true);
     try {
       const user = await login(form.email, form.password, remember);
-      navigate(DASHBOARD_BY_ROLE[user.role] || "/");
+      navigate(dashboardPathFor(user));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -84,7 +78,7 @@ export default function Login() {
           callback: async (response) => {
             try {
               const user = await loginWithGoogle(response.credential, remember);
-              navigate(DASHBOARD_BY_ROLE[user.role] || "/");
+              navigate(dashboardPathFor(user));
             } catch (err) {
               setError(err.message);
             }

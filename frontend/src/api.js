@@ -72,6 +72,8 @@ export const api = {
   // auth
   // Multipart: the account fields and the required profile picture in one request
   register: (form) => request("/auth/register", { method: "POST", body: form, auth: false }),
+  invitation: (token) => request(`/auth/invite/${token}`, { auth: false }),
+  inviteRegister: (form) => request("/auth/invite/register", { method: "POST", body: form, auth: false }),
   login: (payload) => request("/auth/login", { method: "POST", body: payload, auth: false }),
   googleLogin: (credential, remember) =>
     request("/auth/google", { method: "POST", body: { credential, remember }, auth: false }),
@@ -95,11 +97,17 @@ export const api = {
   },
   businessCities: () => request("/businesses/cities", { auth: false }),
   myBusinesses: () => request("/businesses/mine"),
+  staffWorkspaces: () => request("/businesses/staff/mine"),
   business: (id) => request(`/businesses/${id}`, { auth: false }),
   createBusiness: (payload) => request("/businesses", { method: "POST", body: payload }),
   updateBusiness: (id, payload) => request(`/businesses/${id}`, { method: "PATCH", body: payload }),
   addEmployee: (businessId, payload) => request(`/businesses/${businessId}/employees`, { method: "POST", body: payload }),
+  updateEmployee: (businessId, employeeId, payload) => request(`/businesses/${businessId}/employees/${employeeId}`, { method: "PATCH", body: payload }),
   removeEmployee: (businessId, employeeId) => request(`/businesses/${businessId}/employees/${employeeId}`, { method: "DELETE" }),
+  deleteEmployee: (businessId, employeeId) => request(`/businesses/${businessId}/employees/${employeeId}?permanent=true`, { method: "DELETE" }),
+  staffTeam: (businessId) => request(`/businesses/${businessId}/employees`),
+  employeeInvite: (businessId, employeeId) =>
+    request(`/businesses/${businessId}/employees/${employeeId}/invite`, { method: "POST" }),
   addAvailability: (businessId, payload) => request(`/businesses/${businessId}/availability`, { method: "POST", body: payload }),
 
   // services
@@ -114,6 +122,7 @@ export const api = {
   businessBookings: (businessId) => request(`/bookings/business/${businessId}`),
   businessCustomers: (businessId) => request(`/businesses/${businessId}/customers`),
   updateBookingStatus: (id, status) => request(`/bookings/${id}/status`, { method: "PATCH", body: { status } }),
+  assignBooking: (id, employeeId) => request(`/bookings/${id}/assign`, { method: "PATCH", body: { employeeId } }),
   rescheduleBooking: (id, payload) => request(`/bookings/${id}`, { method: "PATCH", body: payload }),
   updateBookingNotes: (id, notes) => request(`/bookings/${id}/notes`, { method: "PATCH", body: { notes } }),
   deleteBooking: (id) => request(`/bookings/${id}`, { method: "DELETE" }),
