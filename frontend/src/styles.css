@@ -6893,6 +6893,146 @@ table.bookings-table { min-width: 560px; }
   .team-invite { grid-template-columns: 1fr; }
 }
 
+/* Team progress card: one teammate's record, popped from the View button. */
+.team-pop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(4, 7, 12, 0.72);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 28px 16px;
+  overflow-y: auto;
+}
+
+.team-pop {
+  width: 100%;
+  max-width: 720px;
+  background: var(--dash-card);
+  border: 1px solid var(--dash-edge);
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  animation: team-pop-in 0.18s ease;
+}
+
+@keyframes team-pop-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.team-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--dash-edge);
+}
+
+.team-pop-id {
+  flex: 1;
+  min-width: 0;
+}
+
+.team-pop-id h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--dash-fg);
+}
+
+.team-pop-id p {
+  margin: 3px 0 0;
+  font-size: 0.76rem;
+  color: var(--dash-fg-2);
+}
+
+.team-pop-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--dash-edge);
+  border-radius: 9px;
+  background: var(--dash-card-2);
+  color: var(--dash-fg-2);
+  cursor: pointer;
+}
+
+.team-pop-close:hover {
+  color: var(--dash-fg);
+  border-color: var(--amber);
+}
+
+.team-pop-body { padding: 18px 20px 20px; }
+/* Two-by-two reads better than the page grid's three-plus-one at this width. */
+.team-pop-body .stat-grid { margin-bottom: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.team-pop-note {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--dash-fg-2);
+}
+
+.team-pop-section { margin-top: 18px; }
+
+.team-pop-section h4 {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: var(--dash-fg);
+}
+
+.team-pop-queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.team-pop-queue li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 11px;
+  background: var(--dash-card-2);
+}
+
+.team-pop-job {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.team-pop-who { font-size: 0.82rem; font-weight: 600; color: var(--dash-fg); }
+.team-pop-what { font-size: 0.74rem; color: var(--dash-fg-2); }
+.team-pop-job-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.team-pop-empty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--dash-edge);
+  border-radius: 11px;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--dash-fg-2);
+}
+
+@media (max-width: 720px) {
+  .team-pop-overlay { padding: 12px 10px 24px; }
+  .team-pop-body { padding: 16px 14px; }
+  .team-pop-queue li { align-items: flex-start; }
+  .team-pop-job-actions { width: 100%; justify-content: space-between; }
+}
+
 /* Staff dashboard: listing switcher, board filters, read-only roster. */
 .staff-switcher {
   display: flex;

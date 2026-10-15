@@ -77,7 +77,7 @@ router.get("/business/:businessId", requireAuth, requireRole("BUSINESS_OWNER", "
 
   const bookings = await prisma.booking.findMany({
     where,
-    include: { service: true, customer: true, payment: true },
+    include: { service: true, customer: true, payment: true, review: { select: { rating: true, createdAt: true } } },
     orderBy: { scheduledAt: "asc" },
   });
   res.json(bookings);

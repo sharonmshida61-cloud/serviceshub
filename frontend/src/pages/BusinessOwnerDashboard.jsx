@@ -21,6 +21,7 @@ const NAV = [
   { key: "mybusiness", label: "My Business", icon: "store", group: "Listing", subtitle: "Details, photos and the address customers see." },
   { key: "services", label: "My Services", icon: "tag", subtitle: "What you offer, at what price." },
   { key: "bookings", label: "Bookings", icon: "calendar", group: "Operations", subtitle: "Requests, confirmations and completed jobs." },
+  { key: "team", label: "Team", icon: "team", subtitle: "Who works on this listing, and what each of their roles opens." },
   { key: "customers", label: "Customers", icon: "users", subtitle: "Everyone who has booked with you." },
   { key: "messages", label: "Messages", icon: "chat", subtitle: "Chats with the customers who message your listing." },
   { key: "reviews", label: "Reviews", icon: "star", subtitle: "Ratings left after a completed booking." },
@@ -149,6 +150,10 @@ export default function BusinessOwnerDashboard() {
 
           {section === "dashboard" && <Overview business={active} onNavigate={setSection} />}
           {section === "bookings" && <BookingsPanel business={active} />}
+          {section === "team" && (active.status === "APPROVED"
+            ? <EmployeesPanel business={active} onChange={load} />
+            : <ApprovalRequired />
+          )}
           {section === "customers" && <CustomersPanel business={active} onStatusChange={load} />}
           {section === "messages" && <ProviderInbox business={active} />}
           {section === "services" && (active.status === "APPROVED"
@@ -378,7 +383,7 @@ function Overview({ business, onNavigate }) {
 
 function MyBusinessSection({ business, onChange }) {
   const [tab, setTab] = useState("details");
-  const TABS = [["details", "Details"], ["media", "Photos & Videos"], ["team", "Team"]];
+  const TABS = [["details", "Details"], ["media", "Photos & Videos"]];
   return (
     <div>
       <div className="tabs">
@@ -388,10 +393,6 @@ function MyBusinessSection({ business, onChange }) {
       </div>
       {tab === "details" && <ListingDetailsPanel business={business} onChange={onChange} />}
       {tab === "media" && <MediaPanel business={business} />}
-      {tab === "team" && (business.status === "APPROVED"
-        ? <EmployeesPanel business={business} onChange={onChange} />
-        : <ApprovalRequired />
-      )}
     </div>
   );
 }
@@ -1105,7 +1106,7 @@ function BookingsPanel({ business }) {
       </table>
       {bookings.length > 0 && !hasTeam && (
         <p className="hint" style={{ marginTop: 12 }}>
-          Names appear here once you add people under My Business → Team.
+          Names appear here once you add people under Team.
         </p>
       )}
     </div>
@@ -1172,6 +1173,173 @@ function ServicesPanel({ business, onChange }) {
 // code built from them reaches nothing. Say so instead of letting it look broken.
 const isLocalHost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(url || "");
 
+const jobWhen = (d) => new Date(d).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const unpaidJob = (b) => b.payment?.status !== "PAID";
+
+// One teammate's record, counted from the listing's own bookings: how much work
+// they were given, how much of it they finished, the money behind the jobs they
+// closed, and how the customers they served rated them. Money follows the same
+// rule the Earnings panel uses — a booking counts once its payment is PAID.
+function memberProgress(member, bookings) {
+  const mine = bookings.filter((b) => b.employeeId === member.id);
+  const amountOf = (b) => b.payment?.amountCents || b.priceCents || 0;
+  const paid = mine.filter((b) => b.payment?.status === "PAID");
+  const onHand = mine.filter((b) => ["PENDING", "CONFIRMED"].includes(b.status));
+  const ratings = mine.map((b) => b.review?.rating).filter((r) => typeof r === "number");
+
+  return {
+    taken: mine.length,
+    done: mine.filter((b) => b.status === "COMPLETED").length,
+    onHand: onHand.length,
+    paidCount: paid.length,
+    collected: paid.reduce((s, b) => s + amountOf(b), 0),
+    unpaid: onHand.filter(unpaidJob).reduce((s, b) => s + amountOf(b), 0),
+    rating: ratings.length ? ratings.reduce((s, r) => s + r, 0) / ratings.length : null,
+    ratingCount: ratings.length,
+    customers: new Set(mine.map((b) => b.customerId).filter(Boolean)).size,
+    jobs: [...mine].sort((a, b) => new Date(b.scheduledAt) - new Date(a.scheduledAt)),
+  };
+}
+
+function TeamProgressCard({ member, jobs, unclaimed, business, onClose, reload }) {
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+  const overlayRef = useRef(null);
+  const name = displayName(member);
+  const p = memberProgress(member, jobs);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  async function give(booking) {
+    setBusyId(booking.id);
+    setError("");
+    try {
+      await api.assignBooking(booking.id, member.id);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return (
+    <div
+      className="team-pop-overlay"
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${name} — team progress`}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="team-pop">
+        <div className="team-pop-head">
+          <TeamAvatar member={member} />
+          <div className="team-pop-id">
+            <h3>{name}</h3>
+            <p>{member.title} · {business.name}</p>
+          </div>
+          <button type="button" className="team-pop-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="team-pop-body">
+          <div className="stat-grid">
+            <StatCard icon="clipboard" color="blue" label="Work taken on" value={p.taken} foot={`${p.done} completed`} footColor="blue" />
+            <StatCard icon="wallet" color="green" label="Money collected" value={formatMoney(p.collected)} foot={`${p.paidCount} paid job${p.paidCount === 1 ? "" : "s"}`} footColor="green" />
+            <StatCard icon="calendar" color="purple" label="Still on their board" value={p.onHand} foot={p.unpaid ? `${formatMoney(p.unpaid)} not paid yet` : "Nothing unpaid"} footColor="purple" />
+            <StatCard icon="star" color="amber" label="Customer rating" value={p.rating ? p.rating.toFixed(1) : "—"} foot={p.ratingCount ? `${p.ratingCount} rating${p.ratingCount === 1 ? "" : "s"}` : "No ratings yet"} footColor="amber" />
+          </div>
+
+          <p className="team-pop-note">
+            {p.customers ? `${p.customers} customer${p.customers === 1 ? "" : "s"} served.` : "No customers yet."}{" "}
+            These numbers count only the bookings on {business.name} that carry their name.
+          </p>
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <div className="team-pop-section">
+            <h4>Work waiting to be claimed</h4>
+            {unclaimed.length === 0 ? (
+              <p className="team-pop-empty">
+                Every open booking already has a name against it. New requests from customers land here.
+              </p>
+            ) : (
+              <ul className="team-pop-queue">
+                {unclaimed.slice(0, 8).map((b) => (
+                  <li key={b.id}>
+                    <div className="team-pop-job">
+                      <span className="team-pop-who">{b.customer?.name || "Customer"}</span>
+                      <span className="team-pop-what">
+                        {b.service?.name || "Booking"} · {jobWhen(b.scheduledAt)}
+                      </span>
+                    </div>
+                    <div className="team-pop-job-actions">
+                      <span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={!member.active || busyId === b.id}
+                        onClick={() => give(b)}
+                      >
+                        {busyId === b.id ? "…" : `Give to ${name}`}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!member.active && (
+              <p className="hint">Bring {name} back to the team before handing them new work.</p>
+            )}
+          </div>
+
+          <div className="team-pop-section">
+            <h4>Their jobs</h4>
+            {p.jobs.length === 0 ? (
+              <p className="team-pop-empty">
+                Nothing has been put on {name}'s name yet. Assign them a job above and it shows up on their own
+                dashboard as soon as they sign in.
+              </p>
+            ) : (
+              <>
+                <div className="table-scroll">
+                  <table className="data-table" style={{ margin: 0 }}>
+                    <thead>
+                      <tr><th>Customer</th><th>Service</th><th>When</th><th>Status</th><th>Paid</th></tr>
+                    </thead>
+                    <tbody>
+                      {p.jobs.slice(0, 12).map((b) => (
+                        <tr key={b.id}>
+                          <td>{b.customer?.name || "Customer"}</td>
+                          <td>{b.service?.name || "—"}</td>
+                          <td>{jobWhen(b.scheduledAt)}</td>
+                          <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
+                          <td>{b.payment?.status === "PAID" ? formatMoney(b.payment?.amountCents || b.priceCents || 0) : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {p.jobs.length > 12 && <p className="hint">Plus {p.jobs.length - 12} earlier jobs.</p>}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmployeesPanel({ business, onChange }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -1187,7 +1355,20 @@ function EmployeesPanel({ business, onChange }) {
   const [invite, setInvite] = useState(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [jobs, setJobs] = useState([]);
+  const [progressFor, setProgressFor] = useState(null);
   const inviteCardRef = useRef(null);
+
+  // Every progress card is counted from this one list, so opening a card costs no
+  // extra request and a job handed over shows up immediately.
+  function loadJobs() {
+    api.businessBookings(business.id).then(setJobs).catch(() => setJobs([]));
+  }
+
+  useEffect(() => {
+    setJobs([]);
+    loadJobs();
+  }, [business.id]);
 
   const members = [...(business.employees || [])].sort(
     (a, b) => Number(b.active) - Number(a.active) || displayName(a).localeCompare(displayName(b))
@@ -1320,15 +1501,24 @@ function EmployeesPanel({ business, onChange }) {
 
   const activeCount = members.filter((m) => m.active).length;
 
+  // Looked up fresh from the roster, so a role change or removal shows in the open
+  // card — and deleting the row closes it, since there is nothing left to show.
+  const progressMember = progressFor ? members.find((m) => m.id === progressFor.id) : null;
+
+  // Work a customer asked for that nobody has claimed yet: the owner hands it over
+  // straight from the card instead of hunting through the booking table.
+  const unclaimed = jobs
+    .filter((b) => !b.employeeId && ["PENDING", "CONFIRMED"].includes(b.status))
+    .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+
   return (
     <div>
-      <h2>Team</h2>
       {error && <div className="alert alert-error">{error}</div>}
       {note && !error && <div className="alert alert-success">{note}</div>}
 
       <div className="panel">
         <div className="panel-head">
-          <h3><Icon name="users" size={17} />Team <span className="inbox-count">{activeCount}</span></h3>
+          <h3><Icon name="team" size={17} />Team <span className="inbox-count">{activeCount}</span></h3>
           <button type="button" className="btn btn-primary btn-sm" onClick={() => { setShowForm((v) => !v); setError(""); }}>
             {showForm ? "Close" : "+ Add a team member"}
           </button>
@@ -1441,6 +1631,7 @@ function EmployeesPanel({ business, onChange }) {
                       <td className="team-joined">{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "—"}</td>
                       <td>
                         <div className="team-actions">
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => setProgressFor(m)}>View</button>
                           {m.active && !m.userId && (
                             <button
                               type="button"
@@ -1556,6 +1747,17 @@ function EmployeesPanel({ business, onChange }) {
       <p className="hint" style={{ marginTop: 12 }}>
         Removing someone keeps their past bookings; deleting them clears the name from this listing.
       </p>
+
+      {progressMember && (
+        <TeamProgressCard
+          member={progressMember}
+          jobs={jobs}
+          unclaimed={unclaimed}
+          business={business}
+          onClose={() => setProgressFor(null)}
+          reload={loadJobs}
+        />
+      )}
     </div>
   );
 }
