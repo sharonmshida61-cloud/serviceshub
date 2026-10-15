@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
@@ -13,6 +13,10 @@ import CitySelect from "../components/CitySelect.jsx";
 import useCities from "../hooks/useCities.js";
 import ProfileCard from "../components/ProfileCard.jsx";
 import ProviderInbox from "../components/ProviderInbox.jsx";
+import ChatComposer from "../components/ChatComposer.jsx";
+import MessageBubble from "../components/MessageBubble.jsx";
+import useChatThread, { stickToBottom } from "../hooks/useChatThread.js";
+import { hasCoords } from "../utils/geolocation.js";
 import TeamAvatar, { displayName, memberPhone, memberEmail } from "../components/TeamAvatar.jsx";
 import { STAFF_ROLES, roleChoices, roleGrants } from "../utils/staffAccess.js";
 
@@ -40,6 +44,9 @@ export default function BusinessOwnerDashboard() {
   const [error, setError] = useState("");
   const [showNewBiz, setShowNewBiz] = useState(false);
   const [categories, setCategories] = useState([]);
+  // Set by a "Message" click under Customers: the inbox opens that conversation, then
+  // clears it so a later visit to Messages shows the whole list again.
+  const [chatWith, setChatWith] = useState(null);
 
   function load() {
     api.myBusinesses().then((list) => {
@@ -57,6 +64,7 @@ export default function BusinessOwnerDashboard() {
     if (!user?.id) return;
     setBusinesses([]);
     setActiveId(null);
+    setChatWith(null);
     load();
   }, [user?.id]);
   useEffect(() => { api.categories().then(setCategories); }, []);
@@ -154,8 +162,13 @@ export default function BusinessOwnerDashboard() {
             ? <EmployeesPanel business={active} onChange={load} />
             : <ApprovalRequired />
           )}
-          {section === "customers" && <CustomersPanel business={active} onStatusChange={load} />}
-          {section === "messages" && <ProviderInbox business={active} />}
+          {section === "customers" && (
+            <CustomersPanel
+              business={active}
+              onMessage={(who) => { setChatWith(who); setSection("messages"); }}
+            />
+          )}
+          {section === "messages" && <ProviderInbox business={active} openWith={chatWith} onOpened={() => setChatWith(null)} />}
           {section === "services" && (active.status === "APPROVED"
             ? <ServicesPanel business={active} onChange={load} />
             : <ApprovalRequired />
@@ -750,13 +763,166 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
   );
 }
 
-function CustomersPanel({ business, onStatusChange }) {
+// Everything the owner can still act on for one customer: how to reach them and
+// every job they asked for, each with the same confirm/decline/complete controls
+// the Bookings table carries.
+function CustomerDetailCard({ entry, business, onClose, onMessage, reload }) {
+  const overlayRef = useRef(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const { customer, bookings, totalSpentCents, unpaidCount, completedCount } = entry;
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  async function setStatus(booking, status) {
+    setBusy(booking.id);
+    setError("");
+    try {
+      await api.updateBookingStatus(booking.id, status);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div
+      className="team-pop-overlay"
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${customer.name} — customer details`}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="team-pop">
+        <div className="team-pop-head">
+          <span className="team-avatar team-avatar--initials">{initials(customer.name)}</span>
+          <div className="team-pop-id">
+            <h3>{customer.name}</h3>
+            <p>
+              {bookings.length} booking{bookings.length === 1 ? "" : "s"} on {business.name} · joined{" "}
+              {new Date(customer.createdAt).toLocaleDateString()}
+            </p>
+          </div>
+          <button type="button" className="team-pop-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="team-pop-body">
+          {customer.bannedAt && (
+            <div className="alert alert-error">
+              This account is banned{customer.banReason ? `: ${customer.banReason}` : " an admin."} Its bookings stay
+              here for the records.
+            </div>
+          )}
+          <div className="cust-contact">
+            <a className="cust-link" href={`mailto:${customer.email}`}>
+              <Icon name="idcard" size={14} /> {customer.email}
+            </a>
+            {customer.phone && (
+              <a className="cust-link" href={`tel:${customer.phone}`}>
+                <Icon name="bell" size={14} /> {customer.phone}
+              </a>
+            )}
+          </div>
+
+          <div className="stat-grid">
+            <StatCard icon="clipboard" color="blue" label="Bookings" value={bookings.length} foot={`${completedCount} completed`} footColor="blue" />
+            <StatCard icon="wallet" color="green" label="Spent with you" value={formatMoney(totalSpentCents)} foot={totalSpentCents ? "Paid jobs" : "Nothing paid yet"} footColor="green" />
+            <StatCard icon="alert" color="amber" label="Unpaid" value={unpaidCount} foot={unpaidCount ? "Chase these up" : "All settled"} footColor="amber" />
+            <StatCard icon="star" color="purple" label="Reviews left" value={bookings.filter((b) => b.review).length} foot="From their finished jobs" footColor="purple" />
+          </div>
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <div className="team-pop-section">
+            <h4>Booking history</h4>
+            <div className="table-scroll">
+              <table className="data-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr><th>Service</th><th>When</th><th>Price</th><th>Paid</th><th>Status</th><th className="cust-col-actions">Actions</th></tr>
+                </thead>
+                <tbody>
+                  {bookings.map((b) => {
+                    const paid = b.payment?.status === "PAID";
+                    return (
+                      <tr key={b.id}>
+                        <td>
+                          <div className="team-name">{b.service?.name || "Booking"}</div>
+                          {b.notes && <div className="team-mail">{b.notes}</div>}
+                          {b.review && (
+                            <div className="team-mail">
+                              {"⭐".repeat(b.review.rating)} {b.review.comment}
+                            </div>
+                          )}
+                        </td>
+                        <td>{jobWhen(b.scheduledAt)}</td>
+                        <td>{formatMoney(b.service?.priceCents || b.priceCents || 0)}</td>
+                        <td>{paid ? "✓" : b.payment?.status === "FAILED" ? "Failed" : "—"}</td>
+                        <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
+                        <td className="cust-col-actions">
+                          <div className="book-actions">
+                            {b.status === "PENDING" && (
+                              <>
+                                <button type="button" className="btn btn-primary btn-sm" disabled={busy === b.id} onClick={() => setStatus(b, "CONFIRMED")}>
+                                  {busy === b.id ? "…" : "Confirm"}
+                                </button>
+                                <button type="button" className="btn btn-danger btn-sm" disabled={busy === b.id} onClick={() => setStatus(b, "DECLINED")}>
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {b.status === "CONFIRMED" && (
+                              <button type="button" className="btn btn-outline btn-sm" disabled={busy === b.id} onClick={() => setStatus(b, "COMPLETED")}>
+                                {busy === b.id ? "…" : "Mark complete"}
+                              </button>
+                            )}
+                            {["PENDING", "CONFIRMED"].includes(b.status) && (
+                              <button type="button" className="btn btn-sm" disabled={busy === b.id} onClick={() => setStatus(b, "CANCELLED")}>
+                                Cancel
+                              </button>
+                            )}
+                            {["COMPLETED", "DECLINED", "CANCELLED"].includes(b.status) && <span className="assign-none">—</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm assign-clear"
+            onClick={() => onMessage({ customerId: customer.id, customerName: customer.name })}
+          >
+            Message {customer.name}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomersPanel({ business, onMessage }) {
   const [entries, setEntries] = useState([]);   // [{ customer, bookings, totalSpentCents, ... }]
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState(null); // customer id whose bookings are expanded
-  const [busy, setBusy] = useState(null); // booking id being updated
+  const [open, setOpen] = useState("");         // customer id shown in the detail card
 
   function load() {
     setLoading(true);
@@ -765,271 +931,315 @@ function CustomersPanel({ business, onStatusChange }) {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }
-  useEffect(load, [business.id]);
+  useEffect(() => { setOpen(""); load(); }, [business.id]);
 
-  async function changeStatus(bookingId, status) {
-    setBusy(bookingId);
-    try {
-      await api.updateBookingStatus(bookingId, status);
-      load();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(null);
-    }
-  }
+  const term = search.trim().toLowerCase();
+  const shown = term
+    ? entries.filter((e) =>
+        [e.customer.name, e.customer.email, e.customer.phone || ""].some((v) => String(v).toLowerCase().includes(term)))
+    : entries;
 
-  const filtered = entries.filter((e) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      e.customer.name.toLowerCase().includes(q) ||
-      e.customer.email.toLowerCase().includes(q) ||
-      (e.customer.phone || "").includes(q)
-    );
-  });
-
-  const STATUS_COLOR = {
-    PENDING:   { bg: "rgba(251, 133, 0, 0.16)", color: "#ffa62b" },
-    CONFIRMED: { bg: "rgba(88, 166, 255, 0.16)", color: "#79b8ff" },
-    COMPLETED: { bg: "rgba(45, 207, 143, 0.16)", color: "#3ddc8b" },
-    DECLINED:  { bg: "rgba(255, 107, 107, 0.16)", color: "#ff8b8b" },
-    CANCELLED: { bg: "rgba(142, 155, 176, 0.16)", color: "#8e9bb0" },
-  };
-  const NEUTRAL_CHIP = { bg: "rgba(142, 155, 176, 0.16)", color: "#8e9bb0" };
-
-  function formatMins(mins) {
-    if (!mins) return "";
-    return mins >= 60 ? `${Math.floor(mins / 60)}h${mins % 60 ? ` ${mins % 60}m` : ""}` : `${mins}m`;
-  }
+  // Looked up fresh from the list, so a status change in the open card shows on the
+  // row and in the history at once — and a customer who no longer has bookings here
+  // closes the card rather than leaving it showing a stale file.
+  const detail = open ? entries.find((e) => e.customer.id === open) : null;
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-        <input
-          placeholder="Search by name, email or phone…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 280 }}
-        />
-      </div>
-
       {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
-      {loading && <p>Loading customers…</p>}
 
-      {!loading && filtered.length === 0 && (
-        <div className="card" style={{ textAlign: "center", padding: "48px 32px" }}>
-          <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>👤</div>
-          <h3>No customers yet</h3>
-          <p style={{ color: "var(--ink-2)" }}>Customers will appear here once they book a service.</p>
+      <div className="panel">
+        <div className="panel-head">
+          <h3><Icon name="users" size={17} />Customers <span className="inbox-count">{entries.length}</span></h3>
         </div>
-      )}
 
-      {filtered.map(({ customer, bookings, totalSpentCents, paidCount, unpaidCount, completedCount, cancelledCount }) => {
-        const isOpen = expanded === customer.id;
-        const lastBooking = bookings[0];
-
-        return (
-          <div key={customer.id} className="card" style={{ marginBottom: 16, padding: 0, overflow: "hidden" }}>
-
-            {/* ── Customer header row ── */}
-            <div
-              style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 20px", cursor: "pointer", flexWrap: "wrap" }}
-              onClick={() => setExpanded(isOpen ? null : customer.id)}
-            >
-              {/* Avatar initials */}
-              <div style={{
-                width: 46, height: 46, borderRadius: "50%", flexShrink: 0,
-                background: "var(--primary, #6366f1)", color: "white",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontWeight: 700, fontSize: "1.1rem",
-              }}>
-                {customer.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-              </div>
-
-              {/* Name + contact */}
-              <div style={{ flex: 1, minWidth: 180 }}>
-                <div style={{ fontWeight: 700, fontSize: "1rem", display: "flex", alignItems: "center", gap: 8 }}>
-                  {customer.name}
-                  {customer.bannedAt && (
-                    <span style={{ fontSize: "0.7rem", background: "#ef4444", color: "white", padding: "2px 7px", borderRadius: 4, fontWeight: 700 }}>BANNED</span>
-                  )}
-                </div>
-                <div style={{ fontSize: "0.82rem", color: "var(--ink-2)", marginTop: 2 }}>
-                  {customer.email}
-                  {customer.phone && <span style={{ marginLeft: 10 }}>📞 {customer.phone}</span>}
-                </div>
-                <div style={{ fontSize: "0.78rem", color: "var(--ink-3, #9ca3af)", marginTop: 2 }}>
-                  Member since {new Date(customer.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-
-              {/* Stats pills */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ textAlign: "center", minWidth: 64 }}>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{bookings.length}</div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>bookings</div>
-                </div>
-                <div style={{ textAlign: "center", minWidth: 64 }}>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "var(--good)" }}>
-                    {totalSpentCents > 0 ? `$${(totalSpentCents / 100).toFixed(2)}` : "$0"}
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>total spent</div>
-                </div>
-                <div style={{ textAlign: "center", minWidth: 64 }}>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem", color: unpaidCount > 0 ? "var(--bad)" : "var(--ink-2)" }}>
-                    {unpaidCount}
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>unpaid</div>
-                </div>
-                <div style={{ textAlign: "center", minWidth: 64 }}>
-                  <div style={{ fontWeight: 700, fontSize: "1.1rem" }}>{completedCount}</div>
-                  <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>completed</div>
-                </div>
-              </div>
-
-              {/* Last booking snippet */}
-              {lastBooking && (
-                <div style={{ fontSize: "0.8rem", color: "var(--ink-2)", minWidth: 140, textAlign: "right" }}>
-                  <div>Last: <strong>{lastBooking.service?.name}</strong></div>
-                  <div>{new Date(lastBooking.scheduledAt).toLocaleDateString()}</div>
-                  <span style={{
-                    display: "inline-block", marginTop: 4, padding: "2px 8px",
-                    borderRadius: 4, fontSize: "0.72rem", fontWeight: 600,
-                    background: STATUS_COLOR[lastBooking.status]?.bg || NEUTRAL_CHIP.bg,
-                    color: STATUS_COLOR[lastBooking.status]?.color || NEUTRAL_CHIP.color,
-                  }}>{lastBooking.status}</span>
-                </div>
-              )}
-
-              <div style={{ fontSize: "1.2rem", color: "var(--ink-2)", marginLeft: 4 }}>{isOpen ? "▲" : "▼"}</div>
-            </div>
-
-            {/* ── Expanded booking history ── */}
-            {isOpen && (
-              <div style={{ borderTop: "1px solid var(--line, #e5e7eb)" }}>
-                <div style={{ padding: "12px 20px 6px", fontSize: "0.85rem", fontWeight: 600, color: "var(--ink-2)" }}>
-                  Booking history ({bookings.length})
-                </div>
-                {bookings.map((b) => {
-                  const paid = b.payment?.status === "PAID";
-                  const payFailed = b.payment?.status === "FAILED";
-                  const statusStyle = STATUS_COLOR[b.status] || NEUTRAL_CHIP;
-
-                  return (
-                    <div key={b.id} style={{
-                      display: "flex", alignItems: "flex-start", gap: 16,
-                      padding: "12px 20px", borderTop: "1px solid var(--line, #e5e7eb)",
-                      flexWrap: "wrap",
-                    }}>
-                      {/* Date + service */}
-                      <div style={{ minWidth: 160 }}>
-                        <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>{b.service?.name}</div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--ink-2)", marginTop: 2 }}>
-                          📅 {new Date(b.scheduledAt).toLocaleString()}
-                        </div>
-                        {b.service?.durationMinutes && (
-                          <div style={{ fontSize: "0.78rem", color: "var(--ink-3, #9ca3af)" }}>
-                            ⏱ {formatMins(b.service.durationMinutes)}
-                          </div>
-                        )}
-                        {b.notes && (
-                          <div style={{ fontSize: "0.78rem", color: "var(--ink-2)", marginTop: 4, fontStyle: "italic" }}>
-                            "{b.notes}"
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Price */}
-                      <div style={{ minWidth: 80, textAlign: "center" }}>
-                        <div style={{ fontWeight: 700, fontSize: "1rem" }}>
-                          ${((b.service?.priceCents || b.priceCents) / 100).toFixed(2)}
-                        </div>
-                        <div style={{ fontSize: "0.72rem", color: "var(--ink-2)" }}>price</div>
-                      </div>
-
-                      {/* Payment status */}
-                      <div style={{ minWidth: 100, textAlign: "center" }}>
-                        <div style={{
-                          display: "inline-block", padding: "4px 10px", borderRadius: 6,
-                          fontWeight: 700, fontSize: "0.78rem",
-                          background: paid ? "rgba(45, 207, 143, 0.16)" : payFailed ? "rgba(255, 107, 107, 0.16)" : "rgba(251, 133, 0, 0.16)",
-                          color: paid ? "#3ddc8b" : payFailed ? "#ff8b8b" : "#ffa62b",
-                        }}>
-                          {paid ? "✓ PAID" : payFailed ? "✗ FAILED" : "⏳ UNPAID"}
-                        </div>
-                        {paid && b.payment?.method && (
-                          <div style={{ fontSize: "0.72rem", color: "var(--ink-2)", marginTop: 3 }}>
-                            via {b.payment.method}
-                          </div>
-                        )}
-                        {paid && b.payment?.transactionRef && (
-                          <div style={{ fontSize: "0.68rem", color: "var(--ink-3, #9ca3af)", marginTop: 2, fontFamily: "monospace" }}>
-                            #{b.payment.transactionRef.slice(-8)}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Booking status badge */}
-                      <div style={{ minWidth: 90, textAlign: "center" }}>
-                        <span style={{
-                          display: "inline-block", padding: "4px 10px", borderRadius: 6,
-                          fontWeight: 700, fontSize: "0.78rem",
-                          background: statusStyle.bg, color: statusStyle.color,
-                        }}>
-                          {b.status}
-                        </span>
-                      </div>
-
-                      {/* Customer's review if any */}
-                      {b.review && (
-                        <div style={{ fontSize: "0.8rem", color: "var(--ink-2)", flex: 1, minWidth: 120 }}>
-                          {"⭐".repeat(b.review.rating)} <em>"{b.review.comment}"</em>
-                        </div>
-                      )}
-
-                      {/* Action buttons */}
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginLeft: "auto" }}>
-                        {b.status === "PENDING" && (
-                          <>
-                            <button
-                              className="btn btn-primary btn-sm"
-                              disabled={busy === b.id}
-                              onClick={() => changeStatus(b.id, "CONFIRMED")}
-                            >
-                              {busy === b.id ? "…" : "✓ Confirm"}
-                            </button>
-                            <button
-                              className="btn btn-danger btn-sm"
-                              disabled={busy === b.id}
-                              onClick={() => changeStatus(b.id, "DECLINED")}
-                            >
-                              Decline
-                            </button>
-                          </>
-                        )}
-                        {b.status === "CONFIRMED" && (
-                          <button
-                            className="btn btn-sm"
-                            style={{ background: "#10b981", color: "white", border: "none" }}
-                            disabled={busy === b.id}
-                            onClick={() => changeStatus(b.id, "COMPLETED")}
-                          >
-                            {busy === b.id ? "…" : "✓ Mark complete"}
-                          </button>
-                        )}
-                        {(b.status === "COMPLETED" || b.status === "DECLINED" || b.status === "CANCELLED") && (
-                          <span style={{ fontSize: "0.78rem", color: "var(--ink-3, #9ca3af)" }}>—</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+        {entries.length > 0 && (
+          <div className="inbox-search" style={{ margin: "0 20px 12px" }}>
+            <Icon name="search" size={16} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search customers by name, email or phone"
+              aria-label="Search customers"
+            />
+            {search && (
+              <button type="button" className="inbox-search-clear" onClick={() => setSearch("")} aria-label="Clear search">
+                <Icon name="close" size={14} />
+              </button>
             )}
           </div>
-        );
-      })}
+        )}
+
+        <div className="panel-body flush">
+          {loading && <p className="team-empty">Loading customers…</p>}
+          {!loading && entries.length === 0 && (
+            <p className="team-empty">No customers yet. They appear here as soon as someone books a service.</p>
+          )}
+          {!loading && entries.length > 0 && shown.length === 0 && (
+            <p className="team-empty">No customer matches “{search.trim()}”.</p>
+          )}
+          {shown.length > 0 && (
+            <div className="table-scroll">
+              <table className="data-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Customer</th>
+                    <th className="cust-col-contact">Contact</th>
+                    <th>Bookings</th>
+                    <th>Spent</th>
+                    <th className="cust-col-unpaid">Unpaid</th>
+                    <th className="cust-col-last">Last booking</th>
+                    <th className="cust-col-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map(({ customer, bookings, totalSpentCents, unpaidCount }) => {
+                    const last = bookings[0];
+                    return (
+                      <tr key={customer.id}>
+                        <td>
+                          <div className="team-member">
+                            <span className="team-avatar team-avatar--initials">{initials(customer.name)}</span>
+                            <div className="team-id">
+                              <div className="team-name">{customer.name}</div>
+                              {customer.bannedAt && <span className="pill pill-suspended">Banned</span>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="cust-col-contact">
+                          <div className="team-mail">{customer.email}</div>
+                          {customer.phone && <div className="team-mail">{customer.phone}</div>}
+                        </td>
+                        <td>{bookings.length}</td>
+                        <td><strong>{formatMoney(totalSpentCents)}</strong></td>
+                        <td className="cust-col-unpaid">{unpaidCount ? <span className="cust-due">{unpaidCount}</span> : "—"}</td>
+                        <td className="cust-col-last">
+                          {last ? (
+                            <div className="cust-last">
+                              <span>{last.service?.name || "Booking"}</span>
+                              <span className="team-mail">{jobWhen(last.scheduledAt)}</span>
+                              <span className={`pill pill-${last.status.toLowerCase()}`}>{last.status}</span>
+                            </div>
+                          ) : "—"}
+                        </td>
+                        <td className="cust-col-actions">
+                          <div className="team-actions">
+                            <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpen(customer.id)}>View</button>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => onMessage({ customerId: customer.id, customerName: customer.name })}
+                            >
+                              Message
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {entries.length > 0 && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          Customers join Nearby by booking, so there is nothing to add or delete here — <strong>View</strong> opens their
+          whole file and lets you confirm, complete or cancel each of their bookings.
+        </p>
+      )}
+
+      {detail && (
+        <CustomerDetailCard
+          entry={detail}
+          business={business}
+          onClose={() => setOpen("")}
+          onMessage={onMessage}
+          reload={load}
+        />
+      )}
+    </div>
+  );
+}
+
+// The card the Assign button opens: everyone on this listing, each on their own
+// row, and one tap puts the customer's job on that person's board.
+function AssignJobCard({ booking, employees, business, onPick, onClose }) {
+  const overlayRef = useRef(null);
+  const [busyId, setBusyId] = useState("");
+  const [error, setError] = useState("");
+  const [q, setQ] = useState("");
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  async function run(value, key) {
+    setBusyId(key);
+    setError("");
+    try {
+      await onPick(booking, value);
+      onClose();
+    } catch (e) {
+      setError(e.message);
+      setBusyId("");
+    }
+  }
+
+  const active = employees.filter((m) => m.active);
+  const removed = employees.filter((m) => !m.active);
+  const holder = employees.find((m) => m.id === booking.employeeId);
+  const holderOff = holder && !holder.active;
+
+  // A busy listing can have more names than fit on the screen, so the card can be
+  // searched by anything the owner remembers: name, role, phone or email.
+  const needle = q.trim().toLowerCase();
+  const matches = (m) =>
+    !needle ||
+    [displayName(m), m.title, memberEmail(m), memberPhone(m)].some((v) => String(v || "").toLowerCase().includes(needle));
+  const shownActive = active.filter(matches);
+  const shownRemoved = removed.filter(matches);
+
+  return (
+    <div
+      className="team-pop-overlay"
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Assign the job from ${booking?.customer?.name || "this customer"}`}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="team-pop team-pop--narrow">
+        <div className="team-pop-head">
+          <div className="team-pop-id">
+            <h3>Assign this job</h3>
+            <p>{booking?.service?.name || "Booking"} · {booking?.scheduledAt ? jobWhen(booking.scheduledAt) : ""}</p>
+          </div>
+          <button type="button" className="team-pop-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="team-pop-body">
+          <p className="team-pop-note">
+            {booking?.customer?.name || "This customer"} booked {booking?.service?.name || "a service"} on {business.name}.
+            Hand it to one of your team and it appears on their dashboard right away.
+          </p>
+          {holderOff && (
+            <div className="alert alert-warn">
+              This job is on {displayName(holder)}’s name, but {displayName(holder)} is off the team. Give it to an
+              active member below to take it over.
+            </div>
+          )}
+          {error && <div className="alert alert-error">{error}</div>}
+
+          {employees.length === 0 ? (
+            <p className="team-pop-empty">
+              Nobody is on this listing yet. Add them under Team and they will show up here to take jobs.
+            </p>
+          ) : (
+            <>
+              <div className="dash-search assign-search">
+                <Icon name="search" size={15} />
+                <input
+                  type="search"
+                  value={q}
+                  autoFocus
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search your team by name, role, phone or email"
+                  aria-label="Search your team"
+                />
+              </div>
+
+              {needle && shownActive.length + shownRemoved.length === 0 ? (
+                <p className="team-pop-empty">
+                  Nobody on {business.name} matches “{q.trim()}”. Close this and check the spelling, or add the person
+                  under Team first.
+                </p>
+              ) : (
+                <>
+                  <div className="team-pop-section">
+                    <h4>Your team · {needle ? `${shownActive.length} of ${active.length}` : active.length}</h4>
+                    {shownActive.length === 0 ? (
+                      <p className="team-pop-empty">
+                        {needle
+                          ? "No active teammate matches that search — the matches below have been removed from the team."
+                          : "Everyone on this listing has been removed, so there is no one to give work to."}
+                      </p>
+                    ) : (
+                      <ul className="assign-list">
+                        {shownActive.map((m) => (
+                          <li key={m.id} className={m.id === booking.employeeId ? "assign-row assign-row--on" : "assign-row"}>
+                            <TeamAvatar member={m} />
+                            <div className="assign-id">
+                              <span className="assign-name">{displayName(m)}</span>
+                              <span className="assign-role">{m.title}</span>
+                            </div>
+                            <div className="assign-act">
+                              {m.id === booking.employeeId ? (
+                                <span className="pill pill-approved">On this job</span>
+                              ) : (
+                                <button type="button" className="btn btn-primary btn-sm" disabled={!!busyId} onClick={() => run(m.id, m.id)}>
+                                  {busyId === m.id ? "…" : "Give this job"}
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {shownRemoved.length > 0 && (
+                    <div className="team-pop-section">
+                      <h4>Removed · {needle ? `${shownRemoved.length} of ${removed.length}` : removed.length}</h4>
+                      <ul className="assign-list">
+                        {shownRemoved.map((m) => (
+                          <li key={m.id} className="assign-row assign-row--out">
+                            <TeamAvatar member={m} />
+                            <div className="assign-id">
+                              <span className="assign-name">{displayName(m)}</span>
+                              <span className="assign-role">{m.title}</span>
+                            </div>
+                            <div className="assign-act">
+                              {m.id === booking.employeeId ? (
+                                <span className="pill pill-suspended">On this job</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline btn-sm"
+                                  disabled
+                                  title={`${displayName(m)} is off the team, so they cannot take new work.`}
+                                >
+                                  Give this job
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {booking.employeeId && (
+                <button type="button" className="btn btn-outline btn-sm assign-clear" disabled={!!busyId} onClick={() => run("", "clear")}>
+                  {busyId === "clear" ? "…" : "Nobody — put it back on the board"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1038,7 +1248,6 @@ function BookingsPanel({ business }) {
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState("");
   const [picking, setPicking] = useState("");
-  const [busyId, setBusyId] = useState("");
 
   function load() { api.businessBookings(business.id).then(setBookings).catch((e) => setError(e.message)); }
   useEffect(() => { setPicking(""); load(); }, [business.id]);
@@ -1048,16 +1257,11 @@ function BookingsPanel({ business }) {
   }
 
   // The same call a manager makes from their own board, so a job the owner puts
-  // here lands on that teammate's dashboard under "Assigned to you".
+  // here lands on that teammate's dashboard under "Assigned to you". The assign
+  // card reports a failure itself, so this only has to keep the row in step.
   async function assign(b, value) {
-    setError("");
-    setBusyId(b.id);
-    try {
-      const updated = await api.assignBooking(b.id, value);
-      setBookings((rows) => rows.map((x) => (x.id === b.id ? { ...x, ...updated } : x)));
-      setPicking("");
-    } catch (e) { setError(e.message); }
-    finally { setBusyId(""); }
+    const updated = await api.assignBooking(b.id, value);
+    setBookings((rows) => rows.map((x) => (x.id === b.id ? { ...x, ...updated } : x)));
   }
 
   const team = (business.employees || []).filter((m) => m.active);
@@ -1068,6 +1272,7 @@ function BookingsPanel({ business }) {
   }
 
   const hasTeam = team.length > 0;
+  const pickingBooking = picking ? bookings.find((b) => b.id === picking) : null;
 
   return (
     <div>
@@ -1082,89 +1287,46 @@ function BookingsPanel({ business }) {
         <thead><tr><th>Customer</th><th>Service</th><th className="book-col-when">When</th><th>Assigned to</th><th>Status</th><th>Paid</th><th className="book-col-actions">Actions</th></tr></thead>
         <tbody>
           {bookings.map((b) => {
-            const open = picking === b.id;
             const editable = ["PENDING", "CONFIRMED"].includes(b.status);
             const who = named(b);
             return (
-              <Fragment key={b.id}>
-                <tr>
-                  <td>{b.customer?.name}</td>
-                  <td>{b.service?.name}</td>
-                  <td className="book-col-when">{jobWhen(b.scheduledAt)}</td>
-                  <td>
-                    {who ? (
-                      <span className="assign-who">
-                        <span className="assign-name">{displayName(who)}</span>
-                        <span className="assign-role">{who.title}</span>
-                      </span>
-                    ) : <span className="assign-none">Unassigned</span>}
-                  </td>
-                  <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
-                  <td>{b.payment?.status === "PAID" ? "✓" : "—"}</td>
-                  <td className="book-col-actions">
-                    <div className="book-actions">
-                      {editable && (
-                        <button
-                          type="button"
-                          className={`btn btn-sm ${who ? "btn-outline" : "btn-primary"}`}
-                          disabled={!hasTeam || busyId === b.id}
-                          title={hasTeam
-                            ? "Choose which teammate takes this job."
-                            : "Add people under Team before assigning work."}
-                          onClick={() => setPicking(open ? "" : b.id)}
-                        >
-                          {busyId === b.id ? "…" : open ? "Close" : who ? "Change" : "Assign"}
-                        </button>
-                      )}
-                      {b.status === "PENDING" && <>
-                        <button className="btn btn-primary btn-sm" onClick={() => setStatus(b, "CONFIRMED")}>Confirm</button>
-                        <button className="btn btn-danger btn-sm" onClick={() => setStatus(b, "DECLINED")}>Decline</button>
-                      </>}
-                      {b.status === "CONFIRMED" && <button className="btn btn-outline btn-sm" onClick={() => setStatus(b, "COMPLETED")}>Mark complete</button>}
-                    </div>
-                  </td>
-                </tr>
-                {open && (
-                  <tr className="book-pick-row">
-                    <td colSpan={7}>
-                      <div className="book-pick">
-                        <div className="book-pick-head">
-                          Who takes this job for <strong>{b.customer?.name}</strong>
-                          <span className="hint">It appears on their dashboard right away.</span>
-                        </div>
-                        <div className="book-pick-chips">
-                          {team.map((t) => (
-                            <button
-                              key={t.id}
-                              type="button"
-                              className={`btn btn-sm ${t.id === b.employeeId ? "btn-primary" : "btn-outline"}`}
-                              disabled={busyId === b.id}
-                              onClick={() => assign(b, t.id)}
-                            >
-                              {displayName(t)} · {t.title}
-                            </button>
-                          ))}
-                          {b.employeeId && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline"
-                              disabled={busyId === b.id}
-                              onClick={() => assign(b, "")}
-                            >
-                              Nobody
-                            </button>
-                          )}
-                        </div>
-                        {who && !who.active && (
-                          <p className="hint book-pick-note">
-                            This job still names {displayName(who)}, who is no longer on the team. Pick someone to take it over.
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
+              <tr key={b.id}>
+                <td>{b.customer?.name}</td>
+                <td>{b.service?.name}</td>
+                <td className="book-col-when">{jobWhen(b.scheduledAt)}</td>
+                <td>
+                  {who ? (
+                    <span className="assign-who">
+                      <span className="assign-name">{displayName(who)}</span>
+                      <span className="assign-role">{who.title}</span>
+                    </span>
+                  ) : <span className="assign-none">Unassigned</span>}
+                </td>
+                <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
+                <td>{b.payment?.status === "PAID" ? "✓" : "—"}</td>
+                <td className="book-col-actions">
+                  <div className="book-actions">
+                    {editable && (
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${who ? "btn-outline" : "btn-primary"}`}
+                        disabled={!hasTeam}
+                        title={hasTeam
+                          ? "Choose which teammate takes this job."
+                          : "Add people under Team before assigning work."}
+                        onClick={() => setPicking(b.id)}
+                      >
+                        {who ? "Change" : "Assign"}
+                      </button>
+                    )}
+                    {b.status === "PENDING" && <>
+                      <button className="btn btn-primary btn-sm" onClick={() => setStatus(b, "CONFIRMED")}>Confirm</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setStatus(b, "DECLINED")}>Decline</button>
+                    </>}
+                    {b.status === "CONFIRMED" && <button className="btn btn-outline btn-sm" onClick={() => setStatus(b, "COMPLETED")}>Mark complete</button>}
+                  </div>
+                </td>
+              </tr>
             );
           })}
         </tbody>
@@ -1174,62 +1336,262 @@ function BookingsPanel({ business }) {
           Assign stays greyed until you add people under Team.
         </p>
       )}
+      {pickingBooking && (
+        <AssignJobCard
+          booking={pickingBooking}
+          employees={business.employees || []}
+          business={business}
+          onPick={assign}
+          onClose={() => setPicking("")}
+        />
+      )}
+    </div>
+  );
+}
+
+// The price and the duration are what a customer books on, so the edit card takes
+// the same fields the add form does — the PATCH route accepts them verbatim.
+function ServiceEditCard({ service, business, onClose, onSave }) {
+  const overlayRef = useRef(null);
+  const [name, setName] = useState(service.name || "");
+  const [description, setDescription] = useState(service.description || "");
+  const [price, setPrice] = useState(((service.priceCents || 0) / 100).toFixed(2));
+  const [duration, setDuration] = useState(String(service.durationMinutes || 60));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        name: name.trim(),
+        description: description.trim(),
+        priceCents: Math.round(Number(price) * 100),
+        durationMinutes: Number(duration),
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="team-pop-overlay"
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Edit ${service.name}`}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="team-pop team-pop--narrow">
+        <div className="team-pop-head">
+          <div className="team-pop-id">
+            <h3>Edit this service</h3>
+            <p>{business.name}</p>
+          </div>
+          <button type="button" className="team-pop-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="team-pop-body">
+          <p className="team-pop-note">
+            Customers book on the price and the time you set here, so the listing page changes the moment you save.
+          </p>
+          {error && <div className="alert alert-error">{error}</div>}
+          <form onSubmit={submit}>
+            <div className="field">
+              <label>Name</label>
+              <input required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="field">
+              <label>Description</label>
+              <input maxLength={200} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+            <div className="grid grid-2">
+              <div className="field">
+                <label>Price (USD)</label>
+                <input required type="number" min="0.01" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </div>
+              <div className="field">
+                <label>Duration (min)</label>
+                <input required type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} />
+              </div>
+            </div>
+            <button className="btn btn-primary btn-block" disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }
 
 function ServicesPanel({ business, onChange }) {
   const [services, setServices] = useState(business.services || []);
+  const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", priceCents: "", durationMinutes: 60 });
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState("");
+  const [editing, setEditing] = useState("");
 
-  function load() { api.servicesForBusiness(business.id).then(setServices); }
+  function load() { api.servicesForBusiness(business.id).then(setServices).catch((e) => setError(e.message)); }
   useEffect(load, [business.id]);
 
   async function addService(e) {
     e.preventDefault();
     setError("");
+    setNote("");
+    const name = form.name.trim();
     try {
-      await api.createService({ businessId: business.id, name: form.name, description: form.description, priceCents: Math.round(Number(form.priceCents) * 100), durationMinutes: Number(form.durationMinutes) });
+      await api.createService({ businessId: business.id, name, description: form.description.trim(), priceCents: Math.round(Number(form.priceCents) * 100), durationMinutes: Number(form.durationMinutes) });
+      setNote(`${name} is on your listing.`);
       setForm({ name: "", description: "", priceCents: "", durationMinutes: 60 });
+      setShowForm(false);
       load();
-    } catch (e) { setError(e.message); }
+      onChange();
+    } catch (err) { setError(err.message); }
   }
 
-  async function removeService(id) {
-    await api.deleteService(id);
-    load();
+  function removeService(s) {
+    if (!confirm(`Remove ${s.name} from your listing? Customers can no longer book it.`)) return;
+    setBusy(s.id);
+    setError("");
+    setNote("");
+    api.deleteService(s.id)
+      .then(() => { setNote(`${s.name} was removed.`); load(); onChange(); })
+      .catch((e) => setError(e.message))
+      .finally(() => setBusy(""));
   }
+
+  // A failing save is reported inside the card, which keeps the fields the owner
+  // typed intact instead of dropping them on a reload.
+  async function saveService(s, payload) {
+    await api.updateService(s.id, payload);
+    setNote(`${payload.name} is updated.`);
+    load();
+    onChange();
+  }
+
+  const editService = editing ? services.find((s) => s.id === editing) : null;
 
   return (
     <div>
       {error && <div className="alert alert-error">{error}</div>}
-      <div className="grid grid-2">
-        {services.map((s) => (
-          <div className="card" key={s.id}>
-            <h3 style={{ marginBottom: 4 }}>{s.name}</h3>
-            <p style={{ margin: 0 }}>{s.description}</p>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
-              <strong>{formatMoney(s.priceCents)}</strong>
-              <span className="hint">{s.durationMinutes} min</span>
-            </div>
-            <button className="btn btn-danger btn-sm" style={{ marginTop: 10 }} onClick={() => removeService(s.id)}>Remove</button>
+      {note && !error && <div className="alert alert-success">{note}</div>}
+
+      <div className="panel">
+        <div className="panel-head">
+          <h3><Icon name="tag" size={17} />My services <span className="inbox-count">{services.length}</span></h3>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => { setShowForm((v) => !v); setError(""); }}>
+            {showForm ? "Close" : "+ Add a service"}
+          </button>
+        </div>
+
+        {showForm && (
+          <div className="panel-body">
+            <form onSubmit={addService} className="team-add">
+              <div className="team-add-fields">
+                <div className="field">
+                  <label>Name</label>
+                  <input required maxLength={80} placeholder="e.g. Burst pipe repair" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+                </div>
+                <div className="field">
+                  <label>Description</label>
+                  <input maxLength={200} placeholder="What the customer gets for this price" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+                </div>
+                <div className="grid grid-2">
+                  <div className="field">
+                    <label>Price (USD)</label>
+                    <input required type="number" min="0.01" step="0.01" value={form.priceCents} onChange={(e) => setForm((f) => ({ ...f, priceCents: e.target.value }))} />
+                  </div>
+                  <div className="field">
+                    <label>Duration (min)</label>
+                    <input required type="number" min="5" step="5" value={form.durationMinutes} onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))} />
+                  </div>
+                </div>
+              </div>
+              <button className="btn btn-primary">Add service</button>
+              <p className="hint team-add-hint">
+                Services appear on your listing page right away, and a customer booking one lands under Bookings where
+                you can assign it to your team.
+              </p>
+            </form>
           </div>
-        ))}
+        )}
+
+        <div className="panel-body flush">
+          {services.length === 0 && (
+            <p className="team-empty">
+              Nothing on offer yet. Add the services you do, at the price and time each one takes.
+            </p>
+          )}
+          {services.length > 0 && (
+            <div className="table-scroll">
+              <table className="data-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Service</th>
+                    <th className="svc-col-desc">Description</th>
+                    <th className="svc-col-price">Price</th>
+                    <th className="svc-col-duration">Duration</th>
+                    <th className="svc-col-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {services.map((s) => (
+                    <tr key={s.id}>
+                      <td><div className="team-name">{s.name}</div></td>
+                      <td className="svc-col-desc"><span className="team-mail svc-desc">{s.description || "—"}</span></td>
+                      <td className="svc-col-price"><strong>{formatMoney(s.priceCents)}</strong></td>
+                      <td className="svc-col-duration">{s.durationMinutes || 60} min</td>
+                      <td className="svc-col-actions">
+                        <div className="team-actions">
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => setEditing(s.id)}>Edit</button>
+                          <button type="button" className="btn btn-danger btn-sm" disabled={busy === s.id} onClick={() => removeService(s)}>
+                            {busy === s.id ? "…" : "Remove"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="card" style={{ maxWidth: 420, marginTop: 20 }}>
-        <h3>Add a service</h3>
-        <form onSubmit={addService}>
-          <div className="field"><label>Name</label><input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
-          <div className="field"><label>Description</label><input value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
-          <div className="grid grid-2">
-            <div className="field"><label>Price (USD)</label><input required type="number" step="0.01" value={form.priceCents} onChange={(e) => setForm((f) => ({ ...f, priceCents: e.target.value }))} /></div>
-            <div className="field"><label>Duration (min)</label><input required type="number" value={form.durationMinutes} onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))} /></div>
-          </div>
-          <button className="btn btn-primary btn-block">Add service</button>
-        </form>
-      </div>
+      {services.length > 0 && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          <strong>Edit</strong> changes what customers see and book, <strong>Remove</strong> takes it off your listing.
+        </p>
+      )}
+
+      {editService && (
+        <ServiceEditCard
+          service={editService}
+          business={business}
+          onClose={() => setEditing("")}
+          onSave={(payload) => saveService(editService, payload)}
+        />
+      )}
     </div>
   );
 }
@@ -1832,39 +2194,216 @@ function EmployeesPanel({ business, onChange }) {
   );
 }
 
-function ReviewsPanel({ business }) {
-  const [reviews, setReviews] = useState([]);
-  const [replyDrafts, setReplyDrafts] = useState({});
+// A review is the start of a conversation, not just a form field. The card keeps
+// the one public line the listing page shows and adds the real chat underneath it,
+// so the owner can send the same photos, stickers, emoji and voice notes a customer
+// can — and both sides see it, because it is the Messages thread.
+function ReviewChatCard({ review, business, onClose, reload }) {
+  const overlayRef = useRef(null);
+  const endRef = useRef(null);
+  const [draft, setDraft] = useState(review.ownerReply || "");
+  const [saving, setSaving] = useState(false);
+  const [replyError, setReplyError] = useState("");
+  const { messages, error, push } = useChatThread(business.id, review.customerId);
+  const name = review.customer?.name || "Customer";
 
-  function load() { api.businessReviews(business.id).then(setReviews); }
-  useEffect(load, [business.id]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
 
-  async function reply(r) {
-    await api.replyToReview(r.id, replyDrafts[r.id] || "");
-    load();
+  useEffect(() => { stickToBottom(endRef.current); }, [messages]);
+
+  const addressPin = hasCoords(business)
+    ? { latitude: business.latitude, longitude: business.longitude, name: `${business.name} address` }
+    : null;
+
+  async function saveReply(e) {
+    e.preventDefault();
+    setSaving(true);
+    setReplyError("");
+    try {
+      await api.replyToReview(review.id, draft);
+      reload();
+    } catch (err) {
+      setReplyError(err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div>
-      {reviews.length === 0 && <p>No reviews yet.</p>}
-      {reviews.map((r) => (
-        <div className="card" key={r.id} style={{ marginBottom: 12 }}>
-          <StarDisplay rating={r.rating} />
-          <p>{r.comment}</p>
-          <span className="hint">— {r.customer?.name}</span>
-          {r.ownerReply ? (
-            <div style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid var(--amber)" }}>
-              <strong style={{ fontSize: "0.85rem" }}>Your reply:</strong>
-              <p style={{ margin: 0 }}>{r.ownerReply}</p>
+    <div
+      className="team-pop-overlay"
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Reply to ${name}’s review`}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="team-pop">
+        <div className="team-pop-head">
+          <span className="team-avatar team-avatar--initials">{initials(name)}</span>
+          <div className="team-pop-id">
+            <h3>{name}’s review</h3>
+            <p>{business.name} · {new Date(review.createdAt).toLocaleDateString()}</p>
+          </div>
+          <button type="button" className="team-pop-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="team-pop-body">
+          <div className="review-quote">
+            <StarDisplay rating={review.rating} />
+            <p>{review.comment || "They rated the job without writing anything."}</p>
+          </div>
+
+          <div className="team-pop-section">
+            <h4>Public reply on your listing</h4>
+            {review.ownerReply && <p className="review-reply">{review.ownerReply}</p>}
+            {replyError && <div className="alert alert-error">{replyError}</div>}
+            <form onSubmit={saveReply} className="msg-row">
+              <input
+                maxLength={500}
+                placeholder={review.ownerReply ? "Update your public reply…" : "Write a public reply…"}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <button type="submit" className="btn btn-outline btn-sm" disabled={saving || !draft.trim()}>
+                {saving ? "…" : review.ownerReply ? "Update" : "Reply"}
+              </button>
+            </form>
+          </div>
+
+          <div className="team-pop-section">
+            <h4>Chat with {name}</h4>
+            <p className="team-pop-note">
+              Photos, video, documents, stickers, emoji, voice notes and locations all work here — this is the same
+              conversation {name} has under Messages, so their answers arrive in both places.
+            </p>
+            <div className="msg-thread review-thread">
+              {messages.length === 0 && <p className="hint">Nothing sent yet. Thanks, apologies and fixes all land here.</p>}
+              {messages.map((m) => (
+                <MessageBubble key={m.id} message={m} mine={m.senderId !== review.customerId} />
+              ))}
+              <div ref={endRef} />
             </div>
-          ) : (
-            <div className="msg-row" style={{ marginTop: 8 }}>
-              <input placeholder="Write a public reply…" value={replyDrafts[r.id] || ""} onChange={(e) => setReplyDrafts((d) => ({ ...d, [r.id]: e.target.value }))} />
-              <button className="btn btn-outline btn-sm" onClick={() => reply(r)}>Reply</button>
+            {error && <div className="alert alert-error">{error}</div>}
+            <ChatComposer
+              businessId={business.id}
+              customerId={review.customerId}
+              addressPin={addressPin}
+              onSent={push}
+              placeholder={`Message ${name}…`}
+            />
+            {!addressPin && (
+              <p className="hint">Pin your location under Business details to send customers your address.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReviewsPanel({ business }) {
+  const [reviews, setReviews] = useState([]);
+  const [error, setError] = useState("");
+  const [open, setOpen] = useState("");       // review id shown in the card
+
+  function load() { api.businessReviews(business.id).then(setReviews).catch((e) => setError(e.message)); }
+  useEffect(() => { setOpen(""); load(); }, [business.id]);
+
+  const detail = open ? reviews.find((r) => r.id === open) : null;
+  const avg = reviews.length
+    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+    : null;
+
+  return (
+    <div>
+      {error && <div className="alert alert-error">{error}</div>}
+
+      <div className="panel">
+        <div className="panel-head">
+          <h3><Icon name="star" size={17} />Reviews <span className="inbox-count">{reviews.length}</span></h3>
+          {avg && <span className="hint">{avg} average</span>}
+        </div>
+
+        <div className="panel-body flush">
+          {reviews.length === 0 && (
+            <p className="team-empty">
+              No reviews yet. A customer can rate a job once it is marked complete.
+            </p>
+          )}
+          {reviews.length > 0 && (
+            <div className="table-scroll">
+              <table className="data-table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th>Reviewer</th>
+                    <th>Rating</th>
+                    <th className="rev-col-words">Their words</th>
+                    <th className="rev-col-reply">Public reply</th>
+                    <th className="rev-col-when">When</th>
+                    <th className="rev-col-actions">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviews.map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <div className="team-member">
+                          <span className="team-avatar team-avatar--initials">{initials(r.customer?.name)}</span>
+                          <div className="team-id">
+                            <div className="team-name">{r.customer?.name || "Customer"}</div>
+                            {r.customer?.email && <div className="team-mail">{r.customer.email}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      <td><StarDisplay rating={r.rating} /></td>
+                      <td className="rev-col-words"><span className="team-mail svc-desc">{r.comment || "—"}</span></td>
+                      <td className="rev-col-reply">
+                        {r.ownerReply
+                          ? <span className="pill pill-approved">Replied</span>
+                          : <span className="assign-none">Not replied</span>}
+                      </td>
+                      <td className="rev-col-when team-joined">{new Date(r.createdAt).toLocaleDateString()}</td>
+                      <td className="rev-col-actions">
+                        <div className="team-actions">
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${r.ownerReply ? "btn-outline" : "btn-primary"}`}
+                            onClick={() => setOpen(r.id)}
+                          >
+                            {r.ownerReply ? "Reply & chat" : "Reply"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
-      ))}
+      </div>
+
+      {reviews.length > 0 && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          The public line stays on your listing page for everyone to read; the chat underneath it is private between
+          you and that customer.
+        </p>
+      )}
+
+      {detail && (
+        <ReviewChatCard review={detail} business={business} onClose={() => setOpen("")} reload={load} />
+      )}
     </div>
   );
 }

@@ -1149,6 +1149,24 @@ table.data-table tr:hover {
   background: var(--paper-2);
 }
 
+/* An Actions column is only a column if its buttons line up under the heading.
+   Right-aligning and shrinking it to its content stops the buttons from
+   stranding in a wide, empty column of their own. */
+table.data-table th.team-col-actions,
+table.data-table td.team-col-actions,
+table.data-table th.book-col-actions,
+table.data-table td.book-col-actions,
+table.data-table th.svc-col-actions,
+table.data-table td.svc-col-actions,
+table.data-table th.cust-col-actions,
+table.data-table td.cust-col-actions,
+table.data-table th.rev-col-actions,
+table.data-table td.rev-col-actions {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
+
 .msg-thread {
   display: flex;
   flex-direction: column;
@@ -6759,7 +6777,7 @@ table.bookings-table { min-width: 560px; }
 .team-role { min-width: 132px; }
 .team-role:disabled { opacity: 0.5; }
 .team-role-custom { margin-top: 8px; width: 100%; }
-.team-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+.team-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: nowrap; }
 .team-joined { color: var(--dash-fg-2); font-size: 0.82rem; white-space: nowrap; }
 .team-row--out .team-name { opacity: 0.6; }
 .team-empty { padding: 18px 20px; margin: 0; color: var(--dash-fg-2); }
@@ -6803,26 +6821,115 @@ table.bookings-table { min-width: 560px; }
   .team-role { min-width: 108px; }
 }
 
-/* Booking assignment: who a customer's job sits with, and the picker the
-   Assign button opens underneath that row. */
+/* Booking assignment: who a customer's job sits with on the row, and the card
+   behind the Assign button that lists everyone on the listing. */
 .assign-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .assign-name { font-weight: 600; }
 .assign-role { font-size: 0.72rem; color: var(--dash-fg-2); }
 .assign-none { color: var(--dash-fg-2); font-size: 0.84rem; }
 
-.book-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.book-actions { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: nowrap; }
 .book-actions .btn { white-space: nowrap; }
 
-.book-pick-row > td { background: var(--dash-card-2); padding: 12px 14px 14px; }
-.book-pick { display: flex; flex-direction: column; gap: 10px; }
-.book-pick-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 0.88rem; }
-.book-pick-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.book-pick-chips .btn { white-space: nowrap; }
-.book-pick-note { margin: 0; }
+.team-pop.team-pop--narrow { max-width: 560px; }
+.assign-search { width: 100%; margin-bottom: 6px; }
+.alert-warn {
+  background: rgba(240, 168, 55, 0.1);
+  color: var(--amber);
+  border-color: rgba(240, 168, 55, 0.32);
+}
+.assign-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.assign-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 12px;
+  background: var(--dash-card-2);
+}
+.assign-row--on { border-color: var(--amber); }
+.assign-row--out { opacity: 0.6; }
+.assign-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.assign-act { display: flex; justify-content: flex-end; }
+.assign-clear { margin-top: 14px; }
+
+/* My Services and Customers as tables. The Actions column is the one worth
+   keeping on a phone, so it pins to the right edge and the columns that cannot
+   fit are dropped instead of squeezed — all of them are in the row's own card. */
+.svc-desc { display: block; max-width: 460px; }
+.cust-due { color: var(--amber); font-weight: 700; }
+.cust-last { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.cust-contact { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.cust-link { display: inline-flex; align-items: center; gap: 7px; font-size: 0.88rem; }
+.cust-link:hover { color: var(--amber); }
+
+@media (max-width: 900px) {
+  .svc-col-actions,
+  .cust-col-actions,
+  .rev-col-actions {
+    position: sticky;
+    right: 0;
+    background: var(--dash-card);
+    box-shadow: -10px 0 12px -12px rgba(0, 0, 0, 0.85);
+  }
+
+  .svc-col-desc,
+  .cust-col-contact,
+  .cust-col-unpaid,
+  .cust-col-last,
+  .rev-col-words,
+  .rev-col-reply,
+  .rev-col-when { display: none; }
+
+  .svc-col-price,
+  .svc-col-duration { white-space: nowrap; }
+}
+
+/* A review opened from the table: the words on the listing, then the live chat.
+   The thread is shorter than the inbox one because it shares a popup with the
+   review and the public reply, and the composer's menus open upwards into it. */
+.review-quote {
+  padding: 12px 14px;
+  border-left: 3px solid var(--amber);
+  border-radius: 0 12px 12px 0;
+  background: var(--dash-card-2);
+}
+
+.review-quote p {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--dash-fg);
+}
+
+.review-reply {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: var(--dash-card-2);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--dash-fg-2);
+}
+
+.review-thread {
+  max-height: 320px;
+  margin-top: 10px;
+  border: 1px solid var(--dash-edge);
+  border-radius: 12px;
+  background: rgba(8, 12, 18, 0.45);
+}
+
+.review-thread .hint {
+  margin: 4px;
+  font-size: 0.78rem;
+}
 
 /* Same trick as the roster: Assign must stay reachable on a phone even though
    the bookings table is wider than the screen, so the button column pins to the
-   right edge and the picker keeps itself inside the viewport. */
+   right edge while the rest of the table scrolls under it. */
 @media (max-width: 900px) {
   .book-col-actions {
     position: sticky;
@@ -6833,7 +6940,15 @@ table.bookings-table { min-width: 560px; }
 
   .book-actions { flex-wrap: nowrap; }
   .book-col-when { white-space: nowrap; }
-  .book-pick { position: sticky; left: 0; width: calc(100vw - 40px); max-width: 560px; }
+}
+
+/* One teammate per row gets cramped on a narrow phone, so the button takes its
+   own line under the name instead of squeezing the middle column. */
+@media (max-width: 560px) {
+  .assign-row { grid-template-columns: auto minmax(0, 1fr); }
+  .assign-act { grid-column: 1 / -1; }
+  .assign-act .btn,
+  .assign-act .pill { width: 100%; justify-content: center; }
 }
 
 /* Whether a row can actually sign in, and what the chosen role opens. */

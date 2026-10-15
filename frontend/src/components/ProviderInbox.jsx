@@ -11,7 +11,7 @@ import { hasCoords } from "../utils/geolocation.js";
 // The provider-side inbox. Both the listing owner and a teammate signed in as
 // staff read and answer the same customer threads, so the markup is shared and
 // cannot drift between the two dashboards.
-export default function ProviderInbox({ business }) {
+export default function ProviderInbox({ business, openWith, onOpened }) {
   const [threads, setThreads] = useState(null);
   const [booked, setBooked] = useState([]);
   const [active, setActive] = useState(null);
@@ -19,6 +19,13 @@ export default function ProviderInbox({ business }) {
   const [query, setQuery] = useState("");
   const { messages, error, push } = useChatThread(business?.id, active?.customerId);
   const endRef = useRef(null);
+
+  // A "Message" click on the customers table lands here with someone already picked.
+  useEffect(() => {
+    if (!openWith?.customerId) return;
+    setActive({ customerId: openWith.customerId, customerName: openWith.customerName });
+    onOpened?.();
+  }, [openWith]);
 
   useEffect(() => {
     api.businessThreads(business.id).then(setThreads).catch((e) => setListError(e.message));
