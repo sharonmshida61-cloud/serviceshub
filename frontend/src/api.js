@@ -106,8 +106,13 @@ export const api = {
   removeEmployee: (businessId, employeeId) => request(`/businesses/${businessId}/employees/${employeeId}`, { method: "DELETE" }),
   deleteEmployee: (businessId, employeeId) => request(`/businesses/${businessId}/employees/${employeeId}?permanent=true`, { method: "DELETE" }),
   staffTeam: (businessId) => request(`/businesses/${businessId}/employees`),
+  // The browser knows which site the owner is on; sending it means the link and
+  // the QR they get always open this site.
   employeeInvite: (businessId, employeeId) =>
-    request(`/businesses/${businessId}/employees/${employeeId}/invite`, { method: "POST" }),
+    request(`/businesses/${businessId}/employees/${employeeId}/invite`, {
+      method: "POST",
+      body: { siteOrigin: window.location.origin },
+    }),
   addAvailability: (businessId, payload) => request(`/businesses/${businessId}/availability`, { method: "POST", body: payload }),
 
   // services

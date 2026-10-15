@@ -391,6 +391,13 @@ function ownsBusiness(business, user) {
   return business.ownerId === user.id || (user.currentRole || user.role) === "ADMIN";
 }
 
+// Naming the sign-in that made the request is what makes "but I am the owner"
+// answerable: a tab that has been open for a while can be carrying an older
+// session belonging to someone else in the same browser.
+function notOwnerOf(business, user) {
+  return `${user.email || "This sign-in"} is not the owner of ${business.name}. Check which account this browser is signed in as, then try again.`;
+}
+
 function cleanField(value, max, { email = false } = {}) {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
@@ -415,7 +422,7 @@ router.post("/:id/employees", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
   if (!ownsBusiness(business, req.user)) {
-    return res.status(403).json({ error: "Only the business owner can add team members" });
+    return res.status(403).json({ error: notOwnerOf(business, req.user) });
   }
 
   const body = req.body || {};
@@ -473,6 +480,14 @@ router.post("/:id/employees", requireAuth, async (req, res) => {
   res.status(201).json(employee);
 });
 
+// A scanned QR has to open the very site the owner is looking at, so the
+// browser's own origin wins over the server's environment guess. Only a bare
+// http(s) origin is accepted — never a path, query or arbitrary string.
+function inviteSiteOrigin(body) {
+  const raw = String(body?.siteOrigin || "").trim().replace(/\/+$/, "");
+  return /^https?:\/\/[-a-z0-9.]+(:\d+)?$/i.test(raw) ? raw : frontendOrigin();
+}
+
 // A teammate who has no account yet is sent a link and a QR code: opening either
 // one starts a sign-up scoped to this listing and this role, and the account it
 // creates lands on the staff dashboard. Asking again mints a new seed, so the
@@ -481,7 +496,7 @@ router.post("/:id/employees/:employeeId/invite", requireAuth, async (req, res) =
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
   if (!ownsBusiness(business, req.user)) {
-    return res.status(403).json({ error: "Only the business owner can invite team members" });
+    return res.status(403).json({ error: notOwnerOf(business, req.user) });
   }
   const member = await prisma.businessEmployee.findFirst({
     where: { id: req.params.employeeId, businessId: business.id },
@@ -496,11 +511,11 @@ router.post("/:id/employees/:employeeId/invite", requireAuth, async (req, res) =
 
   const seed = newInviteSeed();
   await prisma.businessEmployee.update({ where: { id: member.id }, data: { inviteSeed: seed } });
-  const inviteUrl = `${frontendOrigin()}/invite/${signInviteToken(member.id, seed)}`;
+  const inviteUrl = `${inviteSiteOrigin(req.body)}/invite/${signInviteToken(member.id, seed)}`;
   const qrDataUrl = await QRCode.toDataURL(inviteUrl, {
     errorCorrectionLevel: "H",
     type: "image/png",
-    width: 300,
+    width: 512,
     margin: 2,
   });
 
@@ -559,7 +574,7 @@ router.patch("/:id/employees/:employeeId", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
   if (!ownsBusiness(business, req.user)) {
-    return res.status(403).json({ error: "Only the business owner can change the team" });
+    return res.status(403).json({ error: notOwnerOf(business, req.user) });
   }
   const member = await prisma.businessEmployee.findFirst({
     where: { id: req.params.employeeId, businessId: business.id },
@@ -605,7 +620,7 @@ router.delete("/:id/employees/:employeeId", requireAuth, async (req, res) => {
   const business = await prisma.business.findUnique({ where: { id: req.params.id } });
   if (!business) return res.status(404).json({ error: "Business not found" });
   if (!ownsBusiness(business, req.user)) {
-    return res.status(403).json({ error: "Only the business owner can remove team members" });
+    return res.status(403).json({ error: notOwnerOf(business, req.user) });
   }
   const member = await prisma.businessEmployee.findFirst({
     where: { id: req.params.employeeId, businessId: business.id },

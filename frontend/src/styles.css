@@ -6806,7 +6806,7 @@ table.bookings-table { min-width: 560px; }
 /* The link and QR code the owner sends a teammate who has no sign-in yet. */
 .team-invite {
   display: grid;
-  grid-template-columns: 172px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -6815,11 +6815,14 @@ table.bookings-table { min-width: 560px; }
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  /* The code is scrolled to the top of the view; the sticky 74px header would
+     otherwise sit over it. */
+  scroll-margin-top: 86px;
 }
 /* White mat: a code printed on the dark card loses contrast when scanned. */
 .team-invite-qr {
-  width: 164px;
-  height: 164px;
+  width: 260px;
+  height: 260px;
   box-sizing: border-box;
   padding: 6px;
   border-radius: 10px;
@@ -6870,6 +6873,21 @@ table.bookings-table { min-width: 560px; }
   line-height: 1.6;
   color: var(--dash-fg-2);
 }
+/* The link only names this computer, so say it before the code is sent out. */
+.team-invite-local {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 190, 90, 0.34);
+  border-radius: 10px;
+  background: rgba(255, 190, 90, 0.08);
+  color: #ffd79a;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.team-invite-local svg { flex: none; margin-top: 2px; }
 
 @media (max-width: 720px) {
   .team-invite { grid-template-columns: 1fr; }

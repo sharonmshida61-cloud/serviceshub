@@ -44,11 +44,20 @@ export default function BusinessOwnerDashboard() {
     api.myBusinesses().then((list) => {
       setError("");
       setBusinesses(list);
-      if (!activeId && list.length) setActiveId(list[0].id);
+      // Keep the selected listing only while this account still owns it.
+      setActiveId((current) => (list.some((b) => b.id === current) ? current : list[0]?.id || null));
     }).catch((e) => setError(e.message));
   }
 
-  useEffect(load, []);
+  // The listings belong to the signed-in account, so a session that becomes
+  // someone else's mid-page has to drop the ids it was showing: sending one of
+  // those with the new sign-in is what answered "you are not the owner".
+  useEffect(() => {
+    if (!user?.id) return;
+    setBusinesses([]);
+    setActiveId(null);
+    load();
+  }, [user?.id]);
   useEffect(() => { api.categories().then(setCategories); }, []);
 
   const active = businesses.find((b) => b.id === activeId);
@@ -1035,18 +1044,52 @@ function BookingsPanel({ business }) {
     try { await api.updateBookingStatus(b.id, status); load(); } catch (e) { setError(e.message); }
   }
 
+  // The same call a manager makes from their own board, so a job the owner puts
+  // here lands on that teammate's dashboard under "Assigned to you".
+  async function assign(b, value) {
+    setError("");
+    try {
+      const updated = await api.assignBooking(b.id, value);
+      setBookings((rows) => rows.map((x) => (x.id === b.id ? { ...x, ...updated } : x)));
+    } catch (e) { setError(e.message); }
+  }
+
+  // A job handed to someone who has since left the team still carries their name,
+  // so keep them in the list long enough for that row to show it.
+  function pickable(b) {
+    const team = (business.employees || []).filter((m) => m.active);
+    if (team.some((t) => t.id === b.employeeId)) return team;
+    const left = (business.employees || []).find((m) => m.id === b.employeeId);
+    return left ? [...team, left] : team;
+  }
+
+  const hasTeam = (business.employees || []).some((m) => m.active);
+
   return (
     <div>
       {error && <div className="alert alert-error">{error}</div>}
       {bookings.length === 0 && <p>No bookings yet.</p>}
       <table className="data-table">
-        <thead><tr><th>Customer</th><th>Service</th><th>When</th><th>Status</th><th>Paid</th><th></th></tr></thead>
+        <thead><tr><th>Customer</th><th>Service</th><th>When</th><th>On it</th><th>Status</th><th>Paid</th><th></th></tr></thead>
         <tbody>
           {bookings.map((b) => (
             <tr key={b.id}>
               <td>{b.customer?.name}</td>
               <td>{b.service?.name}</td>
               <td>{new Date(b.scheduledAt).toLocaleString()}</td>
+              <td>
+                <select
+                  className="team-role"
+                  value={b.employeeId || ""}
+                  onChange={(e) => assign(b, e.target.value)}
+                  disabled={!["PENDING", "CONFIRMED"].includes(b.status)}
+                >
+                  <option value="">Unclaimed</option>
+                  {pickable(b).map((t) => (
+                    <option key={t.id} value={t.id}>{displayName(t)} · {t.title}</option>
+                  ))}
+                </select>
+              </td>
               <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
               <td>{b.payment?.status === "PAID" ? "✓" : "—"}</td>
               <td style={{ display: "flex", gap: 6 }}>
@@ -1060,6 +1103,11 @@ function BookingsPanel({ business }) {
           ))}
         </tbody>
       </table>
+      {bookings.length > 0 && !hasTeam && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          Names appear here once you add people under My Business → Team.
+        </p>
+      )}
     </div>
   );
 }
@@ -1120,6 +1168,10 @@ function ServicesPanel({ business, onChange }) {
   );
 }
 
+// localhost, 127.0.0.1 and friends name this one computer, so a phone scanning a
+// code built from them reaches nothing. Say so instead of letting it look broken.
+const isLocalHost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(:\d+)?(\/|$)/i.test(url || "");
+
 function EmployeesPanel({ business, onChange }) {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -1131,15 +1183,30 @@ function EmployeesPanel({ business, onChange }) {
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
-  const [inviteFor, setInviteFor] = useState("");
+  const [inviteFor, setInviteFor] = useState(null);
   const [invite, setInvite] = useState(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const inviteCardRef = useRef(null);
 
   const members = [...(business.employees || [])].sort(
     (a, b) => Number(b.active) - Number(a.active) || displayName(a).localeCompare(displayName(b))
   );
-  const inviteMember = members.find((m) => m.id === inviteFor && !m.userId) || null;
+  // Right after an add the refreshed team list may not carry the member yet, so the
+  // row the card was opened for stands in until it does — and one that has picked up
+  // a sign-in closes the card, because there is nothing left to invite.
+  const invitedRow = inviteFor ? members.find((m) => m.id === inviteFor.id) : null;
+  const inviteMember = invitedRow ? (invitedRow.userId ? null : invitedRow) : inviteFor;
+
+  // The card is below the table — a screen away on a phone — so bring the code
+  // itself to the top of the view. Centring the card would clip the QR, which is
+  // taller than a phone screen together with the rest of the card.
+  useEffect(() => {
+    if (!inviteFor) return;
+    const card = inviteCardRef.current;
+    const target = card?.querySelector(".team-invite-qrbox") || card;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [inviteFor, invite]);
   const term = query.trim().toLowerCase();
   const shown = term
     ? members.filter((m) => [displayName(m), memberPhone(m), memberEmail(m), m.title]
@@ -1151,8 +1218,8 @@ function EmployeesPanel({ business, onChange }) {
     setError("");
     setNote("");
     try {
-      await action();
-      setNote(message);
+      const result = await action();
+      setNote(typeof message === "function" ? message(result) : message);
       onChange();
       return true;
     } catch (e) {
@@ -1171,6 +1238,7 @@ function EmployeesPanel({ business, onChange }) {
       return;
     }
     const who = name.trim() || email.trim() || phone.trim();
+    const title = role === "Other" ? customRole.trim() || "Staff" : role;
     let created = null;
     const added = await run(
       "add",
@@ -1178,7 +1246,13 @@ function EmployeesPanel({ business, onChange }) {
         created = await api.addEmployee(business.id, entry);
         return created;
       },
-      `${who} is on your team.`
+      // Their email can belong to an account that already exists, in which case
+      // Nearby links them on the spot and there is no code to send — the owner has
+      // to hear that, or it looks like the invitation failed.
+      (member) =>
+        member?.userId
+          ? `${who} already has a Nearby sign-in, so they are on your team as ${title} right away — no link or QR code needed. Ask them to sign in and they land on their own ${title} dashboard for ${business.name}.`
+          : `${who} is on your team. Send them the link below or let them scan the code to create their sign-in.`
     );
     if (!added) return;
     setName("");
@@ -1198,6 +1272,7 @@ function EmployeesPanel({ business, onChange }) {
 
   function remove(member) {
     if (!confirm(`Remove ${displayName(member)} from your team? Customers will no longer see them on your listing.`)) return;
+    if (inviteFor?.id === member.id) closeInvite();
     run(member.id, () => api.removeEmployee(business.id, member.id), `${displayName(member)} was removed.`);
   }
 
@@ -1207,13 +1282,14 @@ function EmployeesPanel({ business, onChange }) {
 
   function drop(member) {
     if (!confirm(`Delete ${displayName(member)} from this listing for good?`)) return;
+    if (inviteFor?.id === member.id) closeInvite();
     run(member.id, () => api.deleteEmployee(business.id, member.id), `${displayName(member)} was deleted.`);
   }
 
   // Every call mints a new link, so the card always shows the one that currently
   // works; the QR or message sent before it stops opening the sign-up.
   async function openInvite(member) {
-    setInviteFor(member.id);
+    setInviteFor(member);
     setInvite(null);
     setCopied(false);
     setError("");
@@ -1222,14 +1298,14 @@ function EmployeesPanel({ business, onChange }) {
       setInvite(await api.employeeInvite(business.id, member.id));
     } catch (e) {
       setError(e.message);
-      setInviteFor("");
+      setInviteFor(null);
     } finally {
       setInviteBusy(false);
     }
   }
 
   function closeInvite() {
-    setInviteFor("");
+    setInviteFor(null);
     setInvite(null);
     setCopied(false);
   }
@@ -1369,10 +1445,10 @@ function EmployeesPanel({ business, onChange }) {
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              disabled={inviteBusy && inviteFor === m.id}
+                              disabled={inviteBusy && inviteFor?.id === m.id}
                               onClick={() => openInvite(m)}
                             >
-                              {inviteBusy && inviteFor === m.id ? "…" : "Invite"}
+                              {inviteBusy && inviteFor?.id === m.id ? "…" : "Invite"}
                             </button>
                           )}
                           {m.active ? (
@@ -1400,7 +1476,7 @@ function EmployeesPanel({ business, onChange }) {
         </div>
 
         {inviteMember && (
-          <div className="panel-body">
+          <div className="panel-body" ref={inviteCardRef}>
             <div className="team-invite">
               <div className="team-invite-qrbox">
                 {invite ? (
@@ -1451,6 +1527,17 @@ function EmployeesPanel({ business, onChange }) {
                   </span>
                 </div>
                 <p className="hint">Asking for a new link stops the one you sent before from working.</p>
+
+                {invite && isLocalHost(invite.url) && (
+                  <div className="team-invite-local">
+                    <Icon name="alert" size={15} />
+                    <span>
+                      This link says <strong>localhost</strong>, which only names this computer — a phone that scans
+                      the code has nothing to open, and pasting the link fails the same way. The same code works as
+                      soon as you invite from the deployed site.
+                    </span>
+                  </div>
+                )}
 
                 <ol className="team-invite-steps">
                   <li>They scan the QR code or open the link.</li>
