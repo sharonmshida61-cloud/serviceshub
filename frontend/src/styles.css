@@ -6783,6 +6783,59 @@ table.bookings-table { min-width: 560px; }
   .team-mail { max-width: 180px; }
 }
 
+/* On a phone the roster has to keep showing View / Invite / Remove. Status is
+   already readable from the row and the buttons, and Joined is history, so both
+   give way — and the action column pins to the right edge while the rest of the
+   table scrolls under it. */
+@media (max-width: 900px) {
+  .team-col-status,
+  .team-col-joined { display: none; }
+
+  .team-col-actions {
+    position: sticky;
+    right: 0;
+    background: var(--dash-card);
+    box-shadow: -10px 0 12px -12px rgba(0, 0, 0, 0.85);
+  }
+
+  .team-actions { flex-wrap: nowrap; }
+  .team-actions .btn-sm { padding-inline: 9px; white-space: nowrap; }
+  .team-role { min-width: 108px; }
+}
+
+/* Booking assignment: who a customer's job sits with, and the picker the
+   Assign button opens underneath that row. */
+.assign-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.assign-name { font-weight: 600; }
+.assign-role { font-size: 0.72rem; color: var(--dash-fg-2); }
+.assign-none { color: var(--dash-fg-2); font-size: 0.84rem; }
+
+.book-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.book-actions .btn { white-space: nowrap; }
+
+.book-pick-row > td { background: var(--dash-card-2); padding: 12px 14px 14px; }
+.book-pick { display: flex; flex-direction: column; gap: 10px; }
+.book-pick-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 0.88rem; }
+.book-pick-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.book-pick-chips .btn { white-space: nowrap; }
+.book-pick-note { margin: 0; }
+
+/* Same trick as the roster: Assign must stay reachable on a phone even though
+   the bookings table is wider than the screen, so the button column pins to the
+   right edge and the picker keeps itself inside the viewport. */
+@media (max-width: 900px) {
+  .book-col-actions {
+    position: sticky;
+    right: 0;
+    background: var(--dash-card);
+    box-shadow: -10px 0 12px -12px rgba(0, 0, 0, 0.85);
+  }
+
+  .book-actions { flex-wrap: nowrap; }
+  .book-col-when { white-space: nowrap; }
+  .book-pick { position: sticky; left: 0; width: calc(100vw - 40px); max-width: 560px; }
+}
+
 /* Whether a row can actually sign in, and what the chosen role opens. */
 .team-signin {
   display: inline-block;

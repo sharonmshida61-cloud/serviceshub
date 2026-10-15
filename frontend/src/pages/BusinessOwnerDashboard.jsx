@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
@@ -1037,9 +1037,11 @@ function CustomersPanel({ business, onStatusChange }) {
 function BookingsPanel({ business }) {
   const [bookings, setBookings] = useState([]);
   const [error, setError] = useState("");
+  const [picking, setPicking] = useState("");
+  const [busyId, setBusyId] = useState("");
 
   function load() { api.businessBookings(business.id).then(setBookings).catch((e) => setError(e.message)); }
-  useEffect(load, [business.id]);
+  useEffect(() => { setPicking(""); load(); }, [business.id]);
 
   async function setStatus(b, status) {
     try { await api.updateBookingStatus(b.id, status); load(); } catch (e) { setError(e.message); }
@@ -1049,64 +1051,127 @@ function BookingsPanel({ business }) {
   // here lands on that teammate's dashboard under "Assigned to you".
   async function assign(b, value) {
     setError("");
+    setBusyId(b.id);
     try {
       const updated = await api.assignBooking(b.id, value);
       setBookings((rows) => rows.map((x) => (x.id === b.id ? { ...x, ...updated } : x)));
+      setPicking("");
     } catch (e) { setError(e.message); }
+    finally { setBusyId(""); }
   }
 
+  const team = (business.employees || []).filter((m) => m.active);
   // A job handed to someone who has since left the team still carries their name,
-  // so keep them in the list long enough for that row to show it.
-  function pickable(b) {
-    const team = (business.employees || []).filter((m) => m.active);
-    if (team.some((t) => t.id === b.employeeId)) return team;
-    const left = (business.employees || []).find((m) => m.id === b.employeeId);
-    return left ? [...team, left] : team;
+  // so keep naming them on that row even though they cannot take new work.
+  function named(b) {
+    return (business.employees || []).find((m) => m.id === b.employeeId);
   }
 
-  const hasTeam = (business.employees || []).some((m) => m.active);
+  const hasTeam = team.length > 0;
 
   return (
     <div>
       {error && <div className="alert alert-error">{error}</div>}
       {bookings.length === 0 && <p>No bookings yet.</p>}
+      {bookings.length > 0 && (
+        <p className="hint" style={{ marginTop: 0, marginBottom: 10 }}>
+          <strong>Assign</strong> puts a customer's job on that teammate's dashboard, where they can confirm and complete it.
+        </p>
+      )}
       <table className="data-table">
-        <thead><tr><th>Customer</th><th>Service</th><th>When</th><th>On it</th><th>Status</th><th>Paid</th><th></th></tr></thead>
+        <thead><tr><th>Customer</th><th>Service</th><th className="book-col-when">When</th><th>Assigned to</th><th>Status</th><th>Paid</th><th className="book-col-actions">Actions</th></tr></thead>
         <tbody>
-          {bookings.map((b) => (
-            <tr key={b.id}>
-              <td>{b.customer?.name}</td>
-              <td>{b.service?.name}</td>
-              <td>{new Date(b.scheduledAt).toLocaleString()}</td>
-              <td>
-                <select
-                  className="team-role"
-                  value={b.employeeId || ""}
-                  onChange={(e) => assign(b, e.target.value)}
-                  disabled={!["PENDING", "CONFIRMED"].includes(b.status)}
-                >
-                  <option value="">Unclaimed</option>
-                  {pickable(b).map((t) => (
-                    <option key={t.id} value={t.id}>{displayName(t)} · {t.title}</option>
-                  ))}
-                </select>
-              </td>
-              <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
-              <td>{b.payment?.status === "PAID" ? "✓" : "—"}</td>
-              <td style={{ display: "flex", gap: 6 }}>
-                {b.status === "PENDING" && <>
-                  <button className="btn btn-primary btn-sm" onClick={() => setStatus(b, "CONFIRMED")}>Confirm</button>
-                  <button className="btn btn-danger btn-sm" onClick={() => setStatus(b, "DECLINED")}>Decline</button>
-                </>}
-                {b.status === "CONFIRMED" && <button className="btn btn-outline btn-sm" onClick={() => setStatus(b, "COMPLETED")}>Mark complete</button>}
-              </td>
-            </tr>
-          ))}
+          {bookings.map((b) => {
+            const open = picking === b.id;
+            const editable = ["PENDING", "CONFIRMED"].includes(b.status);
+            const who = named(b);
+            return (
+              <Fragment key={b.id}>
+                <tr>
+                  <td>{b.customer?.name}</td>
+                  <td>{b.service?.name}</td>
+                  <td className="book-col-when">{jobWhen(b.scheduledAt)}</td>
+                  <td>
+                    {who ? (
+                      <span className="assign-who">
+                        <span className="assign-name">{displayName(who)}</span>
+                        <span className="assign-role">{who.title}</span>
+                      </span>
+                    ) : <span className="assign-none">Unassigned</span>}
+                  </td>
+                  <td><span className={`pill pill-${b.status.toLowerCase()}`}>{b.status}</span></td>
+                  <td>{b.payment?.status === "PAID" ? "✓" : "—"}</td>
+                  <td className="book-col-actions">
+                    <div className="book-actions">
+                      {editable && (
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${who ? "btn-outline" : "btn-primary"}`}
+                          disabled={!hasTeam || busyId === b.id}
+                          title={hasTeam
+                            ? "Choose which teammate takes this job."
+                            : "Add people under Team before assigning work."}
+                          onClick={() => setPicking(open ? "" : b.id)}
+                        >
+                          {busyId === b.id ? "…" : open ? "Close" : who ? "Change" : "Assign"}
+                        </button>
+                      )}
+                      {b.status === "PENDING" && <>
+                        <button className="btn btn-primary btn-sm" onClick={() => setStatus(b, "CONFIRMED")}>Confirm</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => setStatus(b, "DECLINED")}>Decline</button>
+                      </>}
+                      {b.status === "CONFIRMED" && <button className="btn btn-outline btn-sm" onClick={() => setStatus(b, "COMPLETED")}>Mark complete</button>}
+                    </div>
+                  </td>
+                </tr>
+                {open && (
+                  <tr className="book-pick-row">
+                    <td colSpan={7}>
+                      <div className="book-pick">
+                        <div className="book-pick-head">
+                          Who takes this job for <strong>{b.customer?.name}</strong>
+                          <span className="hint">It appears on their dashboard right away.</span>
+                        </div>
+                        <div className="book-pick-chips">
+                          {team.map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              className={`btn btn-sm ${t.id === b.employeeId ? "btn-primary" : "btn-outline"}`}
+                              disabled={busyId === b.id}
+                              onClick={() => assign(b, t.id)}
+                            >
+                              {displayName(t)} · {t.title}
+                            </button>
+                          ))}
+                          {b.employeeId && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              disabled={busyId === b.id}
+                              onClick={() => assign(b, "")}
+                            >
+                              Nobody
+                            </button>
+                          )}
+                        </div>
+                        {who && !who.active && (
+                          <p className="hint book-pick-note">
+                            This job still names {displayName(who)}, who is no longer on the team. Pick someone to take it over.
+                          </p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
       {bookings.length > 0 && !hasTeam && (
         <p className="hint" style={{ marginTop: 12 }}>
-          Names appear here once you add people under Team.
+          Assign stays greyed until you add people under Team.
         </p>
       )}
     </div>
@@ -1592,7 +1657,7 @@ function EmployeesPanel({ business, onChange }) {
             <div className="table-scroll">
               <table className="data-table" style={{ margin: 0 }}>
                 <thead>
-                  <tr><th>Team member</th><th>Role</th><th>Status</th><th>Joined</th><th></th></tr>
+                  <tr><th>Team member</th><th>Role</th><th className="team-col-status">Status</th><th className="team-col-joined">Joined</th><th className="team-col-actions">Actions</th></tr>
                 </thead>
                 <tbody>
                   {shown.map((m) => (
@@ -1623,20 +1688,23 @@ function EmployeesPanel({ business, onChange }) {
                         </select>
                         {m.active && <div className="team-grants">{roleGrants(m.title)}</div>}
                       </td>
-                      <td>
+                      <td className="team-col-status">
                         <span className={m.active ? "pill pill-approved" : "pill pill-suspended"}>
                           {m.active ? "Active" : "Removed"}
                         </span>
                       </td>
-                      <td className="team-joined">{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "—"}</td>
-                      <td>
+                      <td className="team-joined team-col-joined">{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "—"}</td>
+                      <td className="team-col-actions">
                         <div className="team-actions">
                           <button type="button" className="btn btn-outline btn-sm" onClick={() => setProgressFor(m)}>View</button>
-                          {m.active && !m.userId && (
+                          {m.active && (
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              disabled={inviteBusy && inviteFor?.id === m.id}
+                              disabled={!!m.userId || (inviteBusy && inviteFor?.id === m.id)}
+                              title={m.userId
+                                ? `${displayName(m)} already signs in as staff, so there is nothing to invite — no link or QR code is needed.`
+                                : `Get a link and QR code for ${displayName(m)} to create their sign-in.`}
                               onClick={() => openInvite(m)}
                             >
                               {inviteBusy && inviteFor?.id === m.id ? "…" : "Invite"}
@@ -1745,7 +1813,9 @@ function EmployeesPanel({ business, onChange }) {
       </div>
 
       <p className="hint" style={{ marginTop: 12 }}>
-        Removing someone keeps their past bookings; deleting them clears the name from this listing.
+        Removing someone keeps their past bookings; deleting them clears the name from this listing.{" "}
+        <strong>Invite</strong> on a row always reopens that teammate's link and QR code — it is greyed only when they
+        already sign in as staff, which means no code was ever needed.
       </p>
 
       {progressMember && (
