@@ -5074,14 +5074,30 @@ a.auth-submit--link {
   box-shadow: 0 6px 14px rgba(16, 38, 76, 0.18);
 }
 
+/* Google only ships its own labelled button, so the square draws the logo and
+   Google's control sits on top of it transparently — the click that opens the
+   account chooser is genuinely Google's. */
+.auth-prov--google {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-gsi {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+}
+
+.auth-prov--google:focus-within {
+  outline: 2px solid #4285f4;
+  outline-offset: 2px;
+}
+
 .auth-prov--facebook {
   border-color: #3b5998;
   background: #3b5998;
-}
-
-.auth-prov--github {
-  border-color: #1b1f23;
-  background: #1b1f23;
 }
 
 .auth-prov--twitter {

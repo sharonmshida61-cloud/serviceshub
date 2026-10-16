@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthAside from "../components/AuthAside.jsx";
 import EyeIcon from "../components/EyeIcon.jsx";
@@ -11,7 +11,6 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 // Providers shown in the mockup that have no backend behind them yet.
 const PLACEHOLDER_PROVIDERS = [
   { key: "facebook", icon: "https://api.iconify.design/mdi:facebook.svg?color=%23ffffff&height=18", cls: "auth-prov--facebook" },
-  { key: "github", icon: "https://api.iconify.design/mdi:github.svg?color=%23ffffff&height=18", cls: "auth-prov--github" },
   { key: "twitter", icon: "https://api.iconify.design/mdi:twitter.svg?color=%23ffffff&height=18", cls: "auth-prov--twitter" },
 ];
 
@@ -65,37 +64,43 @@ export default function Login() {
     }
   }
 
-  async function handleGoogle() {
-    setError("");
-    setNotice("");
-    try {
-      await loadGoogleScripts();
-      await new Promise((resolve) => {
+  const googleHostRef = useRef(null);
+  const rememberRef = useRef(remember);
+  useEffect(() => { rememberRef.current = remember; }, [remember]);
+
+  // Google's own rendered control is the only one whose click reliably opens the
+  // account chooser — the one-tap prompt this page used to fire on click is silently
+  // suppressed by browsers. So Google's button is rendered transparently over the
+  // square the card shows and takes the click there.
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !googleHostRef.current) return undefined;
+    let cancelled = false;
+    loadGoogleScripts()
+      .then(() => {
+        if (cancelled || !googleHostRef.current) return;
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           auto_select: false,
-          cancel_on_tap_outside: true,
           callback: async (response) => {
             try {
-              const user = await loginWithGoogle(response.credential, remember);
+              const user = await loginWithGoogle(response.credential, rememberRef.current);
               navigate(dashboardPathFor(user));
             } catch (err) {
               setError(err.message);
             }
-            resolve();
           },
         });
-        window.google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
-            resolve();
-            setError(t("auth.login.googleUnavailable"));
-          }
+        const host = googleHostRef.current;
+        host.replaceChildren();
+        window.google.accounts.id.renderButton(host, {
+          theme: "outline",
+          text: "signin_with",
+          size: "large",
         });
-      });
-    } catch (err) {
-      setError(err.message);
-    }
-  }
+      })
+      .catch((err) => { if (!cancelled) setError(err.message); });
+    return () => { cancelled = true; };
+  }, [loginWithGoogle, navigate]);
 
   return (
     <div className="auth-screen">
@@ -167,11 +172,16 @@ export default function Login() {
           </div>
 
           <div className="auth-providers">
-            {GOOGLE_CLIENT_ID && (
+            {GOOGLE_CLIENT_ID ? (
+              <span className="auth-prov auth-prov--google">
+                <img src={GOOGLE_ICON} alt={t("auth.login.google")} />
+                <span className="auth-gsi" ref={googleHostRef} />
+              </span>
+            ) : (
               <button
                 type="button"
                 className="auth-prov auth-prov--google"
-                onClick={handleGoogle}
+                onClick={() => setNotice(t("auth.login.socialUnavailable"))}
                 aria-label={t("auth.login.google")}
               >
                 <img src={GOOGLE_ICON} alt="" />
