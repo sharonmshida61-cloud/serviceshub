@@ -21,6 +21,16 @@ function parseJsonFields(biz) {
   return { ...biz, attributes: JSON.parse(biz.attributes || "{}") };
 }
 
+// The detail page renders each service, including the photo the owner attached to
+// it, so those attributes have to arrive parsed as well.
+function parseDetail(biz) {
+  const out = parseJsonFields(biz);
+  if (Array.isArray(out.services)) {
+    out.services = out.services.map((s) => ({ ...s, attributes: JSON.parse(s.attributes || "{}") }));
+  }
+  return out;
+}
+
 // The owner's own site. People type "pipepro.co.ke" rather than a full URL, so
 // the scheme is added for them; anything that is not an http(s) link is refused
 // so a listing can never carry a javascript: or data: href.
@@ -151,7 +161,7 @@ router.get("/mine", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (
       },
     },
   });
-  res.json(businesses.map(parseJsonFields));
+  res.json(businesses.map(parseDetail));
 });
 
 // ---------------------------------------------------------------------------
@@ -301,13 +311,35 @@ router.get("/:id", optionalAuth, async (req, res) => {
     }
   }
 
-  res.json(parseJsonFields(business));
+  res.json(parseDetail(business));
 });
+
+// Customers reach a listing through these six: they search by city, read the
+// description, call the phone, open the map pin for directions and check the
+// website. An admin cannot meaningfully review a listing that is missing one, so
+// the create card asks for all of them and the API refuses any that arrive blank.
+const LISTING_REQUIRED = {
+  name: "business name",
+  description: "description",
+  categorySlug: "category",
+  city: "city",
+  phone: "phone number",
+  website: "website",
+};
+
+function missingListingFields(body) {
+  return Object.entries(LISTING_REQUIRED)
+    .filter(([key]) => !String(body?.[key] ?? "").trim())
+    .map(([, label]) => label);
+}
 
 // Create a new business listing (defaults to PENDING until admin approves)
 router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req, res) => {
   const { name, description, categorySlug, address, city, phone, email, website, attributes } = req.body || {};
-  if (!name || !categorySlug) return res.status(400).json({ error: "name and categorySlug are required" });
+  const missing = missingListingFields(req.body);
+  if (missing.length) {
+    return res.status(400).json({ error: `Still needed before you can list: ${missing.join(", ")}.` });
+  }
 
   let coords;
   let site;
@@ -316,6 +348,9 @@ router.post("/", requireAuth, requireRole("BUSINESS_OWNER", "ADMIN"), async (req
     site = normalizeWebsite(website);
   } catch (e) {
     return res.status(400).json({ error: e.message });
+  }
+  if (coords.latitude === undefined) {
+    return res.status(400).json({ error: "Pin your location on the map so customers can find you and get directions." });
   }
 
   const category = await prisma.category.findUnique({ where: { slug: categorySlug } });
@@ -371,6 +406,21 @@ router.patch("/:id", requireAuth, async (req, res) => {
       ...coords,
     },
   });
+  res.json(parseJsonFields(updated));
+});
+
+// Take your own listing off the directory, or put it back in the review queue.
+// The row is never removed: bookings, chats and reviews belong to customers as
+// much as to the owner, so closing hides the listing and keeps its history.
+router.patch("/:id/visibility", requireAuth, async (req, res) => {
+  const business = await prisma.business.findUnique({ where: { id: req.params.id } });
+  if (!business) return res.status(404).json({ error: "Business not found" });
+  if (!ownsBusiness(business, req.user)) {
+    return res.status(403).json({ error: notOwnerOf(business, req.user) });
+  }
+
+  const status = req.body?.closed ? "CLOSED" : "PENDING";
+  const updated = await prisma.business.update({ where: { id: business.id }, data: { status } });
   res.json(parseJsonFields(updated));
 });
 

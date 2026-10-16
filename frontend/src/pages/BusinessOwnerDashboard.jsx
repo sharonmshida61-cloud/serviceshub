@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatMoney } from "../api";
 import { StarDisplay } from "../components/StarRating.jsx";
-import MediaUpload from "../components/MediaUpload.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import DashboardShell from "../components/DashboardShell.jsx";
 import Icon from "../components/Icon.jsx";
@@ -17,13 +16,14 @@ import ChatComposer from "../components/ChatComposer.jsx";
 import MessageBubble from "../components/MessageBubble.jsx";
 import useChatThread, { stickToBottom } from "../hooks/useChatThread.js";
 import { hasCoords } from "../utils/geolocation.js";
+import { siteLabel } from "../utils/website.js";
 import TeamAvatar, { displayName, memberPhone, memberEmail } from "../components/TeamAvatar.jsx";
-import { STAFF_ROLES, roleChoices, roleGrants } from "../utils/staffAccess.js";
+import { STAFF_ROLES, roleGrants } from "../utils/staffAccess.js";
 
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: "dashboard", group: "Overview", subtitle: "Live overview of today's activity at your business." },
-  { key: "mybusiness", label: "My Business", icon: "store", group: "Listing", subtitle: "Details, photos and the address customers see." },
-  { key: "services", label: "My Services", icon: "tag", subtitle: "What you offer, at what price." },
+  { key: "mybusiness", label: "My Business", icon: "store", group: "Listing", subtitle: "Details, your website and the address customers see." },
+  { key: "services", label: "My Services", icon: "tag", subtitle: "What you offer, at what price, with a photo of the work." },
   { key: "bookings", label: "Bookings", icon: "calendar", group: "Operations", subtitle: "Requests, confirmations and completed jobs." },
   { key: "team", label: "Team", icon: "team", subtitle: "Who works on this listing, and what each of their roles opens." },
   { key: "customers", label: "Customers", icon: "users", subtitle: "Everyone who has booked with you." },
@@ -155,12 +155,18 @@ export default function BusinessOwnerDashboard() {
               <strong>Listing suspended</strong> — this listing has been suspended by an admin. Please contact support.
             </div>
           )}
+          {!accountSection && active.status === "CLOSED" && (
+            <div className="alert alert-warn" style={{ marginBottom: 20 }}>
+              <strong>Listing closed</strong> — you closed this listing, so customers cannot find it. Reopen it under
+              My Business; it goes back into the review queue before it goes live again.
+            </div>
+          )}
 
           {section === "dashboard" && <Overview business={active} onNavigate={setSection} />}
           {section === "bookings" && <BookingsPanel business={active} />}
           {section === "team" && (active.status === "APPROVED"
             ? <EmployeesPanel business={active} onChange={load} />
-            : <ApprovalRequired />
+            : <ApprovalRequired closed={active.status === "CLOSED"} />
           )}
           {section === "customers" && (
             <CustomersPanel
@@ -170,10 +176,18 @@ export default function BusinessOwnerDashboard() {
           )}
           {section === "messages" && <ProviderInbox business={active} openWith={chatWith} onOpened={() => setChatWith(null)} />}
           {section === "services" && (active.status === "APPROVED"
-            ? <ServicesPanel business={active} onChange={load} />
-            : <ApprovalRequired />
+            ? <ServicesPanel key={active.id} business={active} categories={categories} onChange={load} />
+            : <ApprovalRequired closed={active.status === "CLOSED"} />
           )}
-          {section === "mybusiness" && <MyBusinessSection business={active} onChange={load} />}
+          {section === "mybusiness" && (
+            <MyBusinessSection
+              business={active}
+              businesses={businesses}
+              onSelect={setActiveId}
+              onCreate={() => setShowNewBiz(true)}
+              onChange={load}
+            />
+          )}
           {section === "reviews" && <ReviewsPanel business={active} />}
           {section === "earnings" && <EarningsPanel business={active} />}
           {section === "analytics" && <AnalyticsPanel business={active} />}
@@ -203,21 +217,30 @@ function Overview({ business, onNavigate }) {
 
   useEffect(() => {
     setData(null);
-    Promise.all([
-      api.businessBookings(business.id).catch(() => []),
-      api.businessCustomers(business.id).catch(() => []),
-      api.servicesForBusiness(business.id).catch(() => []),
-      api.businessReviews(business.id).catch(() => []),
-    ]).then(([bookings, customers, services, reviews]) => setData({ bookings, customers, services, reviews }));
-    api.enhancedPortfolio(business.id)
-      .then((items) => {
+    setPhoto(null);
+    (async () => {
+      const [bookings, customers, services, reviews] = await Promise.all([
+        api.businessBookings(business.id).catch(() => []),
+        api.businessCustomers(business.id).catch(() => []),
+        api.servicesForBusiness(business.id).catch(() => []),
+        api.businessReviews(business.id).catch(() => []),
+      ]);
+      setData({ bookings, customers, services, reviews });
+
+      // The cover is whichever picture the owner has: a photo they attached to a
+      // service first, then anything still in the older listing gallery.
+      const shot = services.find((s) => s.attributes?.photoUrl)?.attributes.photoUrl;
+      if (shot) { setPhoto(shot); return; }
+      try {
+        const items = await api.enhancedPortfolio(business.id);
         const p = items.find((i) => i.type === "PHOTO" && i.mediaUrl) || items.find((i) => i.mediaUrl);
         if (p) { setPhoto(p.thumbnailUrl || p.mediaUrl); return; }
-        return api.portfolioItems(business.id).then((ps) => {
-          if (ps[0]?.imageUrl) setPhoto(ps[0].imageUrl);
-        });
-      })
-      .catch(() => {});
+        const ps = await api.portfolioItems(business.id);
+        if (ps[0]?.imageUrl) setPhoto(ps[0].imageUrl);
+      } catch {
+        // The overview works without a cover photo.
+      }
+    })();
   }, [business.id]);
 
   if (!data) return <p>Loading…</p>;
@@ -358,6 +381,12 @@ function Overview({ business, onNavigate }) {
                 <StarDisplay rating={Number(displayRating)} />
                 <span className="hint">{displayRating} ({reviewCount} reviews)</span>
               </div>
+              {business.website && (
+                <a className="biz-web" href={business.website} target="_blank" rel="noreferrer">
+                  <Icon name="globe" size={14} />
+                  {siteLabel(business.website)}
+                </a>
+              )}
               <div className="btn-row" style={{ marginTop: 14 }}>
                 <button className="btn btn-outline btn-sm" onClick={() => onNavigate("mybusiness")}>Edit Business</button>
                 <Link to={`/business/${business.id}`} className="btn btn-outline btn-sm">View Public Page</Link>
@@ -394,18 +423,296 @@ function Overview({ business, onNavigate }) {
   );
 }
 
-function MyBusinessSection({ business, onChange }) {
-  const [tab, setTab] = useState("details");
-  const TABS = [["details", "Details"], ["media", "Photos & Videos"]];
+// A listing carries its own details; the pictures live with the services that
+// were done, so they are uploaded under My Services instead of here.
+function MyBusinessSection({ business, businesses, onSelect, onCreate, onChange }) {
   return (
     <div>
-      <div className="tabs">
-        {TABS.map(([k, l]) => (
-          <button key={k} type="button" className={tab === k ? "tab active" : "tab"} onClick={() => setTab(k)}>{l}</button>
-        ))}
+      <ListingsPanel
+        businesses={businesses}
+        activeId={business.id}
+        onSelect={onSelect}
+        onCreate={onCreate}
+        reload={onChange}
+        onEdit={onSelect}
+      />
+      <div style={{ marginTop: 22 }}>
+        <ListingDetailsPanel key={business.id} business={business} onChange={onChange} />
       </div>
-      {tab === "details" && <ListingDetailsPanel business={business} onChange={onChange} />}
-      {tab === "media" && <MediaPanel business={business} />}
+    </div>
+  );
+}
+
+const STATUS_LABEL = { APPROVED: "Active", PENDING: "Pending", REJECTED: "Rejected", SUSPENDED: "Suspended", CLOSED: "Closed" };
+
+// One row per listing the owner runs. Everything else on this dashboard follows
+// whichever row is marked "Working on it", so the table is also how they switch.
+function ListingsPanel({ businesses, activeId, onSelect, onCreate, reload, onEdit }) {
+  const [open, setOpen] = useState("");
+  const detail = businesses.find((b) => b.id === open) || null;
+  const live = businesses.filter((b) => b.status === "APPROVED").length;
+
+  return (
+    <>
+      <div className="panel">
+        <div className="panel-head">
+          <h3>
+            <Icon name="store" size={17} />Your listings
+            <span className="inbox-count">{businesses.length}</span>
+          </h3>
+          <button type="button" className="btn btn-outline btn-sm" onClick={onCreate}>+ Add a listing</button>
+        </div>
+
+        <div className="panel-body flush">
+          <div className="table-scroll">
+            <table className="data-table" style={{ margin: 0 }}>
+              <thead>
+                <tr>
+                  <th>Listing</th>
+                  <th className="biz-col-city">City</th>
+                  <th>Services</th>
+                  <th className="biz-col-rating">Rating</th>
+                  <th className="biz-col-status">Status</th>
+                  <th className="biz-col-when">Listed since</th>
+                  <th className="biz-col-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {businesses.map((b) => (
+                  <tr key={b.id}>
+                    <td>
+                      <div className="team-member">
+                        <span className="team-avatar team-avatar--initials">{initials(b.name)}</span>
+                        <div className="team-id">
+                          <div className="team-name">
+                            {b.name}
+                            {b.id === activeId && <span className="biz-you">Working on it</span>}
+                          </div>
+                          <div className="team-mail">{b.category?.name || "No category"}</div>
+                          {b.website && (
+                            <a className="biz-web-row" href={b.website} target="_blank" rel="noreferrer">
+                              <Icon name="globe" size={13} />
+                              {siteLabel(b.website)}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="biz-col-city">{b.city || "—"}</td>
+                    <td>{(b.services || []).filter((s) => s.active).length}</td>
+                    <td className="biz-col-rating">
+                      {b.reviewCount ? `${Number(b.avgRating).toFixed(1)} · ${b.reviewCount}` : "No reviews yet"}
+                    </td>
+                    <td className="biz-col-status">
+                      <span className={`pill pill-${b.status.toLowerCase()}`}>{STATUS_LABEL[b.status] || b.status}</span>
+                    </td>
+                    <td className="biz-col-when team-joined">{new Date(b.createdAt).toLocaleDateString()}</td>
+                    <td className="biz-col-actions">
+                      <div className="team-actions">
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => setOpen(b.id)}>View</button>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => onEdit(b)}>Edit</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <p className="hint" style={{ marginTop: 12 }}>
+        {live} of {businesses.length} {businesses.length === 1 ? "listing is" : "listings are"} live for customers.
+        <strong>View</strong> shows everything you entered and lets you edit, switch to or close that listing;
+        <strong>Edit</strong> opens its details below. A listing you close stops appearing in searches but keeps its
+        bookings, chats and reviews.
+      </p>
+
+      {detail && (
+        <BusinessCard
+          business={detail}
+          isActive={detail.id === activeId}
+          onSelect={onSelect}
+          onEdit={onEdit}
+          onClose={() => setOpen("")}
+          reload={reload}
+        />
+      )}
+    </>
+  );
+}
+
+// Everything the owner put into one listing, and the ways to change it.
+function BusinessCard({ business, isActive, onSelect, onEdit, onClose, reload }) {
+  const overlayRef = useRef(null);
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  const services = (business.services || []).filter((s) => s.active);
+  const team = (business.employees || []).filter((m) => m.active);
+  const closed = business.status === "CLOSED";
+  const attrs = Object.entries(business.attributes || {});
+
+  async function setVisibility(next) {
+    const verb = next ? "close" : "reopen";
+    if (!confirm(next
+      ? `Close ${business.name}? Customers will stop seeing it in searches and on the map. Its bookings, chats and reviews stay.`
+      : `Reopen ${business.name}? It goes back in the review queue, and an admin approves it before customers see it again.`)) return;
+    setBusy("visibility");
+    setError("");
+    try {
+      await api.setBusinessVisibility(business.id, next);
+      reload();
+      onClose();
+    } catch (e) {
+      setError(`${e.message} — could not ${verb} this listing.`);
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <div
+      className="team-pop-overlay"
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${business.name} details`}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+    >
+      <div className="team-pop">
+        <div className="team-pop-head">
+          <span className="team-avatar team-avatar--initials">{initials(business.name)}</span>
+          <div className="team-pop-id">
+            <h3>{business.name}</h3>
+            <p>
+              {business.category?.name || "No category"} · {business.city || "no city set"} ·{" "}
+              <span className={`pill pill-${business.status.toLowerCase()}`}>{STATUS_LABEL[business.status] || business.status}</span>
+            </p>
+          </div>
+          <button type="button" className="team-pop-close" onClick={onClose} aria-label="Close">
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+
+        <div className="team-pop-body">
+          <div className="stat-grid">
+            <StatCard icon="tag" color="amber" label="Services on offer" value={services.length} />
+            <StatCard icon="team" color="blue" label="Team" value={team.length} />
+            <StatCard
+              icon="star"
+              color="green"
+              label="Rating"
+              value={business.reviewCount ? Number(business.avgRating).toFixed(1) : "—"}
+              foot={business.reviewCount ? `${business.reviewCount} review(s)` : "No reviews yet"}
+            />
+            <StatCard icon="pin" color="purple" label="Pinned location" value={hasCoords(business) ? "Yes" : "No"} />
+          </div>
+
+          <div className="team-pop-section">
+            <h4>What customers see</h4>
+            <dl className="biz-facts">
+              <div><dt>Description</dt><dd>{business.description || "Nothing written yet."}</dd></div>
+              <div><dt>Category</dt><dd>{business.category?.name || "—"}</dd></div>
+              <div><dt>City</dt><dd>{business.city || "—"}</dd></div>
+              <div><dt>Address</dt><dd>{business.address || "—"}</dd></div>
+              <div>
+                <dt>Phone</dt>
+                <dd>{business.phone
+                  ? <a className="cust-link" href={`tel:${business.phone}`}><Icon name="chat" size={15} />{business.phone}</a>
+                  : "—"}</dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd>{business.email
+                  ? <a className="cust-link" href={`mailto:${business.email}`}><Icon name="inbox" size={15} />{business.email}</a>
+                  : "—"}</dd>
+              </div>
+              <div>
+                <dt>Website</dt>
+                <dd>{business.website
+                  ? <a className="cust-link" href={business.website} target="_blank" rel="noreferrer"><Icon name="globe" size={15} />{siteLabel(business.website)}</a>
+                  : "—"}</dd>
+              </div>
+              <div>
+                <dt>Pin</dt>
+                <dd>{hasCoords(business)
+                  ? `${business.latitude.toFixed(5)}, ${business.longitude.toFixed(5)}`
+                  : "Not pinned — customers cannot get directions to you."}</dd>
+              </div>
+              {attrs.length > 0 && (
+                <div>
+                  <dt>{business.category?.name || "Listing"} details</dt>
+                  <dd>{attrs.map(([k, v]) => `${k}: ${v}`).join(" · ")}</dd>
+                </div>
+              )}
+              <div><dt>Listed since</dt><dd>{new Date(business.createdAt).toLocaleDateString()}</dd></div>
+            </dl>
+          </div>
+
+          {services.length > 0 && (
+            <div className="team-pop-section">
+              <h4>Services</h4>
+              <ul className="biz-services">
+                {services.map((s) => (
+                  <li key={s.id}>
+                    <span>{s.name}</span>
+                    <span className="biz-service-price">{formatMoney(s.priceCents)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="team-pop-note">Add, change or remove them under My Services.</p>
+            </div>
+          )}
+
+          {error && <div className="alert alert-error" style={{ marginTop: 14 }}>{error}</div>}
+
+          <div className="biz-act">
+            <Link className="btn btn-outline btn-sm" to={`/business/${business.id}`}>Open public page</Link>
+            {business.website && (
+              <a className="btn btn-outline btn-sm" href={business.website} target="_blank" rel="noreferrer">
+                <Icon name="globe" size={14} /> Open website
+              </a>
+            )}
+            {!isActive && (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => { onSelect(business.id); onClose(); }}
+              >
+                Work on this listing
+              </button>
+            )}
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => { onEdit(business); onClose(); }}>
+              Edit details
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${closed ? "btn-outline" : "btn-danger"}`}
+              disabled={!!busy}
+              onClick={() => setVisibility(!closed)}
+            >
+              {busy === "visibility" ? "…" : closed ? "Reopen listing" : "Close this listing"}
+            </button>
+          </div>
+
+          <p className="team-pop-note" style={{ marginTop: 12 }}>
+            {closed
+              ? "This listing is closed — customers cannot find it. Reopening sends it back to the review queue."
+              : "Closing takes the listing out of searches without deleting its bookings, chats or reviews."}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -553,14 +860,15 @@ function OwnerNotifications() {
   );
 }
 
-function ApprovalRequired() {
+function ApprovalRequired({ closed }) {
   return (
     <div className="card" style={{ textAlign: "center", padding: "48px 32px", maxWidth: 480 }}>
-      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>⏳</div>
-      <h3>Pending admin approval</h3>
+      <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>{closed ? "🔒" : "⏳"}</div>
+      <h3>{closed ? "This listing is closed" : "Pending admin approval"}</h3>
       <p style={{ color: "var(--ink-2)" }}>
-        This section will be available once an admin approves your listing.
-        We'll notify you as soon as it's reviewed.
+        {closed
+          ? "Customers cannot see a closed listing. Reopen it under My Business — it goes back through the review queue."
+          : "This section will be available once an admin approves your listing. We'll notify you as soon as it's reviewed."}
       </p>
     </div>
   );
@@ -571,54 +879,21 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
   const [form, setForm] = useState({ name: "", description: "", categorySlug: "", city: "", address: "", phone: "", website: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [mediaFiles, setMediaFiles] = useState([]); // [{ file, objectUrl, type }]
-  const [dragging, setDragging] = useState(false);
-  const fileInputRef = useRef(null);
-
-  function addFiles(fileList) {
-    const next = [];
-    for (const f of fileList) {
-      if (!f.type.startsWith("image/") && !f.type.startsWith("video/")) continue;
-      next.push({ file: f, objectUrl: URL.createObjectURL(f), type: f.type.startsWith("video/") ? "VIDEO" : "PHOTO" });
-    }
-    if (next.length) setMediaFiles((p) => [...p, ...next]);
-  }
-
-  function removeFile(i) {
-    setMediaFiles((p) => {
-      URL.revokeObjectURL(p[i].objectUrl);
-      return p.filter((_, idx) => idx !== i);
-    });
-  }
 
   async function submit(e) {
     e.preventDefault();
+    if (!form.city) {
+      setError("Choose the place your business is in — customers search listings by city.");
+      return;
+    }
+    if (!hasCoords(form)) {
+      setError("Pin your location on the map — customers use it for directions, so a listing needs one.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      // 1. Create the business listing
-      const biz = await api.createBusiness(form);
-
-      // 2. Upload any media files that were added
-      if (mediaFiles.length > 0) {
-        for (const item of mediaFiles) {
-          try {
-            const { url, type } = await api.uploadMedia(biz.id, item.file);
-            await api.addEnhancedPortfolio({
-              businessId: biz.id,
-              type,
-              title: "",
-              description: "",
-              mediaUrl: url,
-            });
-          } catch {
-            // Non-fatal — listing is created, media can be added later from the Media tab
-          }
-        }
-        mediaFiles.forEach((m) => URL.revokeObjectURL(m.objectUrl));
-      }
-
-      onCreated(biz);
+      onCreated(await api.createBusiness(form));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -626,18 +901,17 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
     }
   }
 
-  const ACCEPTED = "image/jpeg,image/png,image/gif,image/webp,image/avif,video/mp4,video/webm,video/quicktime";
-
   return (
     <div className="card" style={{ maxWidth: 560, marginBottom: 24 }}>
       <h3>List a new business</h3>
       {error && <div className="alert alert-error">{error}</div>}
       <form onSubmit={submit}>
-        {/* ---- Basic info ---- */}
         <div className="field">
           <label>Business name</label>
-          <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          <input required maxLength={80} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
         </div>
+        {/* A listing cannot exist without one: the category is also the bucket your
+            services are filed under, so it is asked for here rather than later. */}
         <div className="field">
           <label>Category</label>
           <select required value={form.categorySlug} onChange={(e) => setForm((f) => ({ ...f, categorySlug: e.target.value }))}>
@@ -645,28 +919,27 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
             {categories.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
           </select>
         </div>
+        <div className="grid grid-2">
+          <div className="field">
+            <label>Place</label>
+            <CitySelect cities={cities} value={form.city} onChange={(city) => setForm((f) => ({ ...f, city }))} placeholder="Select your city…" showCounts={false} />
+          </div>
+          <div className="field">
+            <label>Phone number</label>
+            <input required type="tel" maxLength={30} placeholder="e.g. 0712 345 678" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+          </div>
+        </div>
+        <div className="field">
+          <label>Street address <span style={{ color: "var(--ink-2)", fontWeight: 400 }}>(optional)</span></label>
+          <input maxLength={120} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
+        </div>
         <div className="field">
           <label>Description</label>
-          <textarea rows={3} placeholder="Tell customers what makes your business great…" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
-        </div>
-        <div className="grid grid-2">
-          <div className="field"><label>City</label><CitySelect cities={cities} value={form.city} onChange={(city) => setForm((f) => ({ ...f, city }))} placeholder="Select your city…" showCounts={false} /></div>
-          <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
-        </div>
-        <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
-        <div className="field">
-          <label>Website (optional)</label>
-          <input
-            value={form.website}
-            maxLength={200}
-            placeholder="pipepro.co.ke"
-            onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
-          />
-          <span className="hint">Customers open your site in a new tab from your listing page.</span>
+          <textarea required rows={3} maxLength={500} placeholder="Tell customers what makes your business great…" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
         </div>
 
         <div className="field">
-          <label>Pin your location</label>
+          <label>Location on Google Maps</label>
           <LocationPicker
             value={form}
             name={form.name}
@@ -674,81 +947,16 @@ function NewBusinessForm({ categories, onCreated, onCancel }) {
           />
         </div>
 
-        {/* ---- Media upload ---- */}
-        <div style={{ marginTop: 24, marginBottom: 8 }}>
-          <label style={{ fontWeight: 600, display: "block", marginBottom: 6 }}>
-            📸 Photos & Videos <span style={{ fontWeight: 400, color: "var(--ink-2)", fontSize: "0.85rem" }}>(optional — helps with approval)</span>
-          </label>
-
-          {/* Drop zone */}
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); }}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragging ? "var(--primary, #6366f1)" : "var(--line, #e5e7eb)"}`,
-              borderRadius: 10,
-              padding: "24px 16px",
-              textAlign: "center",
-              cursor: "pointer",
-              background: dragging ? "var(--primary-light, #eef2ff)" : "var(--paper-2, #f9fafb)",
-              transition: "all 0.15s",
-            }}
-          >
-            <div style={{ fontSize: "2rem", marginBottom: 6 }}>📷</div>
-            <p style={{ margin: 0, fontWeight: 600, fontSize: "0.9rem" }}>Drag & drop photos or videos here</p>
-            <p style={{ margin: "4px 0 0", color: "var(--ink-2)", fontSize: "0.8rem" }}>
-              or click to browse — JPG, PNG, WebP, MP4, WebM (max 50 MB each)
-            </p>
-          </div>
+        <div className="field">
+          <label>Website</label>
           <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ACCEPTED}
-            style={{ display: "none" }}
-            onChange={(e) => addFiles(e.target.files)}
+            required
+            value={form.website}
+            maxLength={200}
+            placeholder="pipepro.co.ke"
+            onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
           />
-
-          {/* Preview grid */}
-          {mediaFiles.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: 8, marginTop: 12 }}>
-              {mediaFiles.map((m, i) => (
-                <div key={i} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", background: "#000" }}>
-                  {m.type === "VIDEO" ? (
-                    <video src={m.objectUrl} style={{ width: "100%", height: "100%", objectFit: "cover" }} muted />
-                  ) : (
-                    <img src={m.objectUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  )}
-                  {/* Type badge */}
-                  <span style={{
-                    position: "absolute", bottom: 4, left: 4,
-                    background: "rgba(0,0,0,0.6)", color: "white",
-                    fontSize: "0.65rem", padding: "2px 5px", borderRadius: 3,
-                  }}>{m.type === "VIDEO" ? "🎥" : "📸"}</span>
-                  {/* Remove button */}
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                    style={{
-                      position: "absolute", top: 4, right: 4,
-                      background: "rgba(0,0,0,0.65)", color: "white",
-                      border: "none", borderRadius: "50%",
-                      width: 22, height: 22, cursor: "pointer",
-                      fontSize: "0.75rem", lineHeight: 1, padding: 0,
-                    }}
-                  >✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {mediaFiles.length > 0 && (
-            <p style={{ margin: "8px 0 0", fontSize: "0.8rem", color: "var(--ink-2)" }}>
-              {mediaFiles.length} file{mediaFiles.length !== 1 ? "s" : ""} selected — will be uploaded when you submit
-            </p>
-          )}
+          <span className="hint">Customers open your site in a new tab from your listing page, and it stays linked in your dashboard.</span>
         </div>
 
         <div className="btn-row" style={{ marginTop: 20 }}>
@@ -1349,14 +1557,68 @@ function BookingsPanel({ business }) {
   );
 }
 
+// One picture per service, stored on the service itself, so customers see the work
+// next to the price they book at. Uploads reuse the listing's own media route.
+function ServicePhotoField({ businessId, value, onChange }) {
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function pick(file) {
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { url } = await api.uploadMedia(businessId, file);
+      onChange(url);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="field">
+      <label>Photo of this service</label>
+      <div className="svc-photo-row">
+        {value ? <img className="svc-photo" src={value} alt="" /> : <span className="svc-photo svc-photo--empty">No photo</span>}
+        <div className="svc-photo-actions">
+          <button type="button" className="btn btn-outline btn-sm" disabled={busy} onClick={() => inputRef.current?.click()}>
+            {busy ? "Uploading…" : value ? "Replace" : "Upload"}
+          </button>
+          {!!value && !busy && (
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => onChange("")}>Remove</button>
+          )}
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={(e) => pick(e.target.files?.[0])}
+      />
+      {error
+        ? <span className="hint svc-photo-error">{error}</span>
+        : <span className="hint">A photo of finished work sells the service — JPG, PNG or WebP up to 50 MB.</span>}
+    </div>
+  );
+}
+
 // The price and the duration are what a customer books on, so the edit card takes
 // the same fields the add form does — the PATCH route accepts them verbatim.
-function ServiceEditCard({ service, business, onClose, onSave }) {
+function ServiceEditCard({ service, business, categories, onClose, onSave }) {
   const overlayRef = useRef(null);
   const [name, setName] = useState(service.name || "");
   const [description, setDescription] = useState(service.description || "");
   const [price, setPrice] = useState(((service.priceCents || 0) / 100).toFixed(2));
   const [duration, setDuration] = useState(String(service.durationMinutes || 60));
+  const listingCategory = categories.find((c) => c.id === business.categoryId);
+  const [categorySlug, setCategorySlug] = useState(
+    (categories.find((c) => c.id === service.categoryId) || listingCategory)?.slug || ""
+  );
+  const [photo, setPhoto] = useState(service.attributes?.photoUrl || "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -1375,11 +1637,16 @@ function ServiceEditCard({ service, business, onClose, onSave }) {
     setSaving(true);
     setError("");
     try {
+      const attributes = { ...(service.attributes || {}) };
+      if (photo) attributes.photoUrl = photo;
+      else delete attributes.photoUrl;
       await onSave({
         name: name.trim(),
         description: description.trim(),
         priceCents: Math.round(Number(price) * 100),
         durationMinutes: Number(duration),
+        categorySlug,
+        attributes,
       });
       onClose();
     } catch (err) {
@@ -1422,6 +1689,13 @@ function ServiceEditCard({ service, business, onClose, onSave }) {
               <label>Description</label>
               <input maxLength={200} value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
+            <div className="field">
+              <label>Category of this service</label>
+              <select value={categorySlug} onChange={(e) => setCategorySlug(e.target.value)}>
+                {categories.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
+              </select>
+              <span className="hint">Your listing sits in {listingCategory?.name || "its own category"}; this service can be filed elsewhere.</span>
+            </div>
             <div className="grid grid-2">
               <div className="field">
                 <label>Price (USD)</label>
@@ -1432,6 +1706,7 @@ function ServiceEditCard({ service, business, onClose, onSave }) {
                 <input required type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} />
               </div>
             </div>
+            <ServicePhotoField businessId={business.id} value={photo} onChange={setPhoto} />
             <button className="btn btn-primary btn-block" disabled={saving}>
               {saving ? "Saving…" : "Save changes"}
             </button>
@@ -1442,14 +1717,16 @@ function ServiceEditCard({ service, business, onClose, onSave }) {
   );
 }
 
-function ServicesPanel({ business, onChange }) {
+function ServicesPanel({ business, categories, onChange }) {
   const [services, setServices] = useState(business.services || []);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "", priceCents: "", durationMinutes: 60 });
+  const [form, setForm] = useState({ name: "", description: "", priceCents: "", durationMinutes: 60, photo: "", categorySlug: business.category?.slug || "" });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
   const [editing, setEditing] = useState("");
+
+  const categoryOf = (id) => categories.find((c) => c.id === id)?.name || "No category";
 
   function load() { api.servicesForBusiness(business.id).then(setServices).catch((e) => setError(e.message)); }
   useEffect(load, [business.id]);
@@ -1460,9 +1737,9 @@ function ServicesPanel({ business, onChange }) {
     setNote("");
     const name = form.name.trim();
     try {
-      await api.createService({ businessId: business.id, name, description: form.description.trim(), priceCents: Math.round(Number(form.priceCents) * 100), durationMinutes: Number(form.durationMinutes) });
+      await api.createService({ businessId: business.id, name, description: form.description.trim(), priceCents: Math.round(Number(form.priceCents) * 100), durationMinutes: Number(form.durationMinutes), categorySlug: form.categorySlug, attributes: form.photo ? { photoUrl: form.photo } : {} });
       setNote(`${name} is on your listing.`);
-      setForm({ name: "", description: "", priceCents: "", durationMinutes: 60 });
+      setForm({ name: "", description: "", priceCents: "", durationMinutes: 60, photo: "", categorySlug: business.category?.slug || "" });
       setShowForm(false);
       load();
       onChange();
@@ -1516,6 +1793,16 @@ function ServicesPanel({ business, onChange }) {
                   <label>Description</label>
                   <input maxLength={200} placeholder="What the customer gets for this price" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
                 </div>
+                <div className="field">
+                  <label>Category of this service</label>
+                  <select value={form.categorySlug} onChange={(e) => setForm((f) => ({ ...f, categorySlug: e.target.value }))}>
+                    {categories.map((c) => <option key={c.id} value={c.slug}>{c.name}</option>)}
+                  </select>
+                  <span className="hint">
+                    Your listing itself sits in {business.category?.name || "its own category"} — a service can be filed under a
+                    different one, e.g. a plumber selling a boiler service under Heating.
+                  </span>
+                </div>
                 <div className="grid grid-2">
                   <div className="field">
                     <label>Price (USD)</label>
@@ -1526,6 +1813,7 @@ function ServicesPanel({ business, onChange }) {
                     <input required type="number" min="5" step="5" value={form.durationMinutes} onChange={(e) => setForm((f) => ({ ...f, durationMinutes: e.target.value }))} />
                   </div>
                 </div>
+                <ServicePhotoField businessId={business.id} value={form.photo} onChange={(photo) => setForm((f) => ({ ...f, photo }))} />
               </div>
               <button className="btn btn-primary">Add service</button>
               <p className="hint team-add-hint">
@@ -1557,7 +1845,24 @@ function ServicesPanel({ business, onChange }) {
                 <tbody>
                   {services.map((s) => (
                     <tr key={s.id}>
-                      <td><div className="team-name">{s.name}</div></td>
+                      <td>
+                        <div className="svc-cell">
+                          {s.attributes?.photoUrl ? (
+                            <img className="svc-photo" src={s.attributes.photoUrl} alt="" />
+                          ) : (
+                            <span className="svc-photo svc-photo--empty" aria-hidden="true" />
+                          )}
+                          <div>
+                            <div className="team-name">{s.name}</div>
+                            <div className="svc-cat">
+                              {categoryOf(s.categoryId)}
+                              {s.categoryId !== business.categoryId && (
+                                <em className="svc-cat-diff">not {categoryOf(business.categoryId)}</em>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
                       <td className="svc-col-desc"><span className="team-mail svc-desc">{s.description || "—"}</span></td>
                       <td className="svc-col-price"><strong>{formatMoney(s.priceCents)}</strong></td>
                       <td className="svc-col-duration">{s.durationMinutes || 60} min</td>
@@ -1580,7 +1885,7 @@ function ServicesPanel({ business, onChange }) {
 
       {services.length > 0 && (
         <p className="hint" style={{ marginTop: 12 }}>
-          <strong>Edit</strong> changes what customers see and book, <strong>Remove</strong> takes it off your listing.
+          <strong>Edit</strong> changes what customers see and book — including the photo of the work — and <strong>Remove</strong> takes it off your listing.
         </p>
       )}
 
@@ -1588,6 +1893,7 @@ function ServicesPanel({ business, onChange }) {
         <ServiceEditCard
           service={editService}
           business={business}
+          categories={categories}
           onClose={() => setEditing("")}
           onSave={(payload) => saveService(editService, payload)}
         />
@@ -1784,6 +2090,8 @@ function EmployeesPanel({ business, onChange }) {
   const [copied, setCopied] = useState(false);
   const [jobs, setJobs] = useState([]);
   const [progressFor, setProgressFor] = useState(null);
+  // Which row's role is being typed, so its access note can keep up with the words.
+  const [roleDraft, setRoleDraft] = useState(null);
   const inviteCardRef = useRef(null);
 
   // Every progress card is counted from this one list, so opening a card costs no
@@ -1876,6 +2184,15 @@ function EmployeesPanel({ business, onChange }) {
 
   function changeRole(member, value) {
     run(member.id, () => api.updateEmployee(business.id, member.id, { title: value }), `${displayName(member)} is now ${value}.`);
+  }
+
+  // Any role the owner types is stored as written — the names in the list are
+  // only suggestions, and an unchanged or blank field is not worth a request.
+  function commitRole(member, value) {
+    setRoleDraft(null);
+    const title = String(value || "").trim();
+    if (!title || title === member.title) return;
+    changeRole(member, title);
   }
 
   function remove(member) {
@@ -2017,6 +2334,9 @@ function EmployeesPanel({ business, onChange }) {
           )}
           {shown.length > 0 && (
             <div className="table-scroll">
+              <datalist id="staff-role-list">
+                {STAFF_ROLES.map((r) => <option key={r} value={r} />)}
+              </datalist>
               <table className="data-table" style={{ margin: 0 }}>
                 <thead>
                   <tr><th>Team member</th><th>Role</th><th className="team-col-status">Status</th><th className="team-col-joined">Joined</th><th className="team-col-actions">Actions</th></tr>
@@ -2040,15 +2360,25 @@ function EmployeesPanel({ business, onChange }) {
                         </div>
                       </td>
                       <td>
-                        <select
+                        <input
                           className="team-role"
-                          value={m.title}
+                          list="staff-role-list"
+                          maxLength={40}
+                          defaultValue={m.title}
+                          placeholder="Their role"
                           disabled={!m.active || busy === m.id}
-                          onChange={(e) => changeRole(m, e.target.value)}
-                        >
-                          {roleChoices(m.title).map((r) => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                        {m.active && <div className="team-grants">{roleGrants(m.title)}</div>}
+                          onChange={(e) => setRoleDraft({ id: m.id, title: e.target.value })}
+                          onBlur={(e) => commitRole(m, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter") return;
+                            e.preventDefault();
+                            commitRole(m, e.target.value);
+                            e.target.blur();
+                          }}
+                        />
+                        {m.active && (
+                          <div className="team-grants">{roleGrants(roleDraft?.id === m.id ? roleDraft.title : m.title)}</div>
+                        )}
                       </td>
                       <td className="team-col-status">
                         <span className={m.active ? "pill pill-approved" : "pill pill-suspended"}>
@@ -2435,26 +2765,27 @@ function ListingDetailsPanel({ business, onChange }) {
       {saved && <div className="alert alert-success">Saved.</div>}
       {error && <div className="alert alert-error">{error}</div>}
       <form onSubmit={save} className="card" style={{ maxWidth: 480 }}>
-        <div className="field"><label>Name</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
-        <div className="field"><label>Description</label><textarea rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
+        <div className="field"><label>Name</label><input required maxLength={80} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} /></div>
+        <div className="field"><label>Description</label><textarea required rows={3} maxLength={500} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
         <div className="grid grid-2">
-          <div className="field"><label>City</label><CitySelect cities={cities} value={form.city} onChange={(city) => setForm((f) => ({ ...f, city }))} placeholder="Select your city…" showCounts={false} /></div>
-          <div className="field"><label>Phone</label><input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+          <div className="field"><label>Place</label><CitySelect cities={cities} value={form.city} onChange={(city) => setForm((f) => ({ ...f, city }))} placeholder="Select your city…" showCounts={false} /></div>
+          <div className="field"><label>Phone number</label><input required type="tel" maxLength={30} value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></div>
         </div>
         <div className="field"><label>Address</label><input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></div>
         <div className="field">
-          <label>Website (optional)</label>
+          <label>Website</label>
           <input
+            required
             value={form.website}
             maxLength={200}
             placeholder="pipepro.co.ke"
             onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
           />
-          <span className="hint">Customers open your site in a new tab from your listing page.</span>
+          <span className="hint">Customers open your site in a new tab from your listing page, and the same link shows in your dashboard.</span>
         </div>
 
         <div className="field">
-          <label>Pin your location</label>
+          <label>Location on Google Maps</label>
           <LocationPicker
             value={form}
             name={form.name}
@@ -2482,123 +2813,6 @@ function ListingDetailsPanel({ business, onChange }) {
         ))}
         <button className="btn btn-primary btn-block">Save changes</button>
       </form>
-    </div>
-  );
-}
-
-function MediaPanel({ business }) {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showUpload, setShowUpload] = useState(false);
-  const [error, setError] = useState("");
-
-  function load() {
-    setLoading(true);
-    api.enhancedPortfolio(business.id)
-      .then(setItems)
-      .catch(() => setItems([]))
-      .finally(() => setLoading(false));
-  }
-  useEffect(load, [business.id]);
-
-  async function remove(id) {
-    if (!confirm("Delete this item?")) return;
-    try {
-      await api.deleteEnhancedPortfolio(id);
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    } catch (e) {
-      setError(e.message);
-    }
-  }
-
-  const TYPE_LABEL = { PHOTO: "📸 Photo", VIDEO: "🎥 Video", CERTIFICATE: "📜 Certificate", LICENSE: "✅ License", PROJECT: "🏗️ Project" };
-
-  return (
-    <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <h2 style={{ margin: 0 }}>Photos & Videos</h2>
-        <button className="btn btn-primary btn-sm" onClick={() => setShowUpload((v) => !v)}>
-          {showUpload ? "✕ Cancel" : "+ Add media"}
-        </button>
-      </div>
-
-      {error && <div className="alert alert-error" style={{ marginBottom: 12 }}>{error}</div>}
-
-      {showUpload && (
-        <div style={{ marginBottom: 28 }}>
-          <MediaUpload
-            businessId={business.id}
-            onUploadComplete={() => { setShowUpload(false); load(); }}
-            onCancel={() => setShowUpload(false)}
-          />
-        </div>
-      )}
-
-      {loading && <p>Loading…</p>}
-
-      {!loading && items.length === 0 && !showUpload && (
-        <div className="card" style={{ textAlign: "center", padding: "48px 32px" }}>
-          <div style={{ fontSize: "3rem", marginBottom: 12 }}>🖼️</div>
-          <h3>No media yet</h3>
-          <p style={{ color: "var(--ink-2)", marginBottom: 20 }}>
-            Photos and videos help customers trust your business and make booking decisions.
-            Upload your best work!
-          </p>
-          <button className="btn btn-primary" onClick={() => setShowUpload(true)}>Upload your first photo</button>
-        </div>
-      )}
-
-      {!loading && items.length > 0 && (
-        <div className="grid grid-3">
-          {items.map((item) => (
-            <div key={item.id} className="card" style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-              <div style={{ position: "relative", paddingBottom: "66.67%", background: "#000", overflow: "hidden" }}>
-                {item.type === "VIDEO" ? (
-                  <video
-                    src={item.mediaUrl}
-                    poster={item.thumbnailUrl}
-                    style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }}
-                    muted
-                  />
-                ) : (
-                  <img
-                    src={item.mediaUrl}
-                    alt={item.title || item.type}
-                    style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }}
-                  />
-                )}
-                <span style={{
-                  position: "absolute", top: 8, left: 8,
-                  padding: "3px 8px", borderRadius: 4,
-                  background: "rgba(0,0,0,0.6)", color: "white",
-                  fontSize: "0.72rem", fontWeight: 600,
-                }}>
-                  {TYPE_LABEL[item.type] || item.type}
-                </span>
-                {item.verified && (
-                  <span style={{
-                    position: "absolute", top: 8, right: 8,
-                    padding: "3px 8px", borderRadius: 4,
-                    background: "#10b981", color: "white",
-                    fontSize: "0.72rem", fontWeight: 600,
-                  }}>✓ Verified</span>
-                )}
-              </div>
-              <div style={{ padding: "10px 12px", flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                {item.title && <h4 style={{ margin: 0, fontSize: "0.9rem" }}>{item.title}</h4>}
-                {item.description && <p style={{ margin: 0, fontSize: "0.82rem", color: "var(--ink-2)", flex: 1 }}>{item.description}</p>}
-                <button
-                  className="btn btn-danger btn-sm"
-                  style={{ alignSelf: "flex-start", marginTop: 6 }}
-                  onClick={() => remove(item.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

@@ -103,9 +103,14 @@ export default function BusinessDetail() {
   if (!business) return <div className="container page">{t("common.loading")}</div>;
 
   const attrs = Object.entries(business.attributes || {}).filter(([, v]) => v !== "" && v !== false);
+  // Owners attach one photo per service now, so the gallery also draws from those.
+  const serviceShots = (business.services || [])
+    .filter((s) => s.attributes?.photoUrl)
+    .map((s) => ({ id: s.id, type: "PHOTO", mediaUrl: s.attributes.photoUrl, title: s.name, description: "" }));
   // Merge both portfolio sources; enhanced portfolio takes priority
   const allMedia = [
     ...enhancedPortfolio,
+    ...serviceShots,
     ...portfolio.map((p) => ({ ...p, type: "PHOTO", mediaUrl: p.imageUrl })),
   ];
 
@@ -248,6 +253,7 @@ export default function BusinessDetail() {
           {business.services?.length === 0 && <p>{t("business.noServices")}</p>}
           {business.services?.map((s) => (
             <div className="card" style={{ marginBottom: 14 }} key={s.id}>
+              {s.attributes?.photoUrl && <img className="svc-shot" src={s.attributes.photoUrl} alt={s.name} />}
               <div className="svc-card-head">
                 <div>
                   <h3 style={{ marginBottom: 4 }}>{s.name}</h3>

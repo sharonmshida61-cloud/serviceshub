@@ -101,6 +101,7 @@ export const api = {
   business: (id) => request(`/businesses/${id}`, { auth: false }),
   createBusiness: (payload) => request("/businesses", { method: "POST", body: payload }),
   updateBusiness: (id, payload) => request(`/businesses/${id}`, { method: "PATCH", body: payload }),
+  setBusinessVisibility: (id, closed) => request(`/businesses/${id}/visibility`, { method: "PATCH", body: { closed } }),
   addEmployee: (businessId, payload) => request(`/businesses/${businessId}/employees`, { method: "POST", body: payload }),
   updateEmployee: (businessId, employeeId, payload) => request(`/businesses/${businessId}/employees/${employeeId}`, { method: "PATCH", body: payload }),
   removeEmployee: (businessId, employeeId) => request(`/businesses/${businessId}/employees/${employeeId}`, { method: "DELETE" }),

@@ -1,11 +1,6 @@
-// Roles an owner can hand out. Anything else the owner typed earlier is kept as
-// a custom role so editing one member never rewrites another's title.
+// Roles worth suggesting when an owner names a teammate's job. The field itself
+// takes anything, so a title outside this list gets the "other" access below.
 export const STAFF_ROLES = ["Manager", "Technician", "Craftsman", "Reception", "Support"];
-
-export function roleChoices(current) {
-  const list = STAFF_ROLES.includes(current) || !current ? STAFF_ROLES : [current, ...STAFF_ROLES];
-  return [...new Set([...list, "Other"])];
-}
 
 // Kept in step with backend/src/utils/staffPermissions.js so the owner's team
 // table and the teammate's own dashboard describe the same access.

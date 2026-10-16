@@ -22,6 +22,17 @@ async function assertOwnerOrAdmin(req, res, businessId) {
   return business;
 }
 
+// The listing's category says where the business appears in the directory; the
+// work it offers is filed separately, so an owner can list plumbing repairs under
+// a different category than the one their shop sits in. Leaving the choice alone
+// keeps the listing's category, which is what older callers do.
+async function resolveCategory(body, business) {
+  const slug = String(body?.categorySlug || "").trim();
+  if (!slug) return business.categoryId;
+  const category = await prisma.category.findUnique({ where: { slug } });
+  return category ? category.id : null;
+}
+
 router.get("/business/:businessId", async (req, res) => {
   const services = await prisma.service.findMany({
     where: { businessId: req.params.businessId, active: true },
@@ -44,10 +55,13 @@ router.post("/", requireAuth, async (req, res) => {
     }
   }
 
+  const categoryId = await resolveCategory(req.body, business);
+  if (!categoryId) return res.status(400).json({ error: "Unknown category" });
+
   const service = await prisma.service.create({
     data: {
       businessId,
-      categoryId: business.categoryId,
+      categoryId,
       name,
       description,
       priceCents,
@@ -64,7 +78,12 @@ router.patch("/:id", requireAuth, async (req, res) => {
   const business = await assertOwnerOrAdmin(req, res, service.businessId);
   if (!business) return;
 
-  const { name, description, priceCents, durationMinutes, attributes, active } = req.body || {};
+  const { name, description, priceCents, durationMinutes, attributes, active, categorySlug } = req.body || {};
+  let categoryId;
+  if (categorySlug !== undefined) {
+    categoryId = await resolveCategory({ categorySlug }, business);
+    if (!categoryId) return res.status(400).json({ error: "Unknown category" });
+  }
   const updated = await prisma.service.update({
     where: { id: req.params.id },
     data: {
@@ -73,6 +92,7 @@ router.patch("/:id", requireAuth, async (req, res) => {
       ...(priceCents !== undefined && { priceCents }),
       ...(durationMinutes !== undefined && { durationMinutes }),
       ...(attributes !== undefined && { attributes: JSON.stringify(attributes) }),
+      ...(categoryId !== undefined && { categoryId }),
       ...(active !== undefined && { active }),
     },
   });
